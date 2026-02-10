@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const axiosClient = axios.create({
   baseURL: API_URL,
@@ -33,7 +33,7 @@ axiosClient.interceptors.response.use(
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
-    
+
     // Return error in consistent format
     const errorData = error.response?.data || { error: error.message || 'An error occurred' };
     return Promise.reject(errorData);

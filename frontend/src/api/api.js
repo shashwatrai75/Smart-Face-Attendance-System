@@ -8,7 +8,7 @@
 import axiosClient from './axiosClient';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // ============================================
 // AUTHENTICATION
@@ -119,10 +119,10 @@ export const startSession = (classId) => {
 };
 
 export const markAttendance = async (sessionId, classId, recognizedStudents) => {
-  const studentsArray = Array.isArray(recognizedStudents) 
-    ? recognizedStudents 
+  const studentsArray = Array.isArray(recognizedStudents)
+    ? recognizedStudents
     : [recognizedStudents];
-  
+
   return axiosClient.post('/attendance/mark', {
     sessionId,
     classId,

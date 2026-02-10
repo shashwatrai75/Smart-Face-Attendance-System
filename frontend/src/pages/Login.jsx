@@ -20,7 +20,7 @@ const Login = () => {
     if (user) {
       // Normalize role: treat "lecturer" as "teacher"
       const userRole = user.role === 'lecturer' ? 'teacher' : user.role;
-      
+
       if (userRole === 'admin') {
         navigate('/admin/dashboard', { replace: true });
       } else if (userRole === 'teacher') {
@@ -52,12 +52,12 @@ const Login = () => {
       console.log('Login response:', response); // Debug log
       console.log('Response type:', typeof response);
       console.log('Response keys:', response ? Object.keys(response) : 'null');
-      
+
       // Handle response - axios interceptor already unwraps response.data
       if (response && response.token && response.user) {
         console.log('Login successful, saving token and user data');
         console.log('User data from response:', response.user);
-        
+
         // Ensure user object has all required fields
         const userData = {
           id: response.user.id || response.user._id,
@@ -66,7 +66,7 @@ const Login = () => {
           role: response.user.role || 'viewer',
           institutionName: response.user.institutionName || '',
         };
-        
+
         console.log('Processed user data:', userData);
         login(response.token, userData);
 
@@ -76,17 +76,17 @@ const Login = () => {
 
         // Small delay to ensure state is saved before navigation
         setTimeout(() => {
-        // Redirect based on role
-        if (userRole === 'admin') {
+          // Redirect based on role
+          if (userRole === 'admin') {
             console.log('Redirecting to admin dashboard');
-          navigate('/admin/dashboard', { replace: true });
-        } else if (userRole === 'teacher') {
+            navigate('/admin/dashboard', { replace: true });
+          } else if (userRole === 'teacher') {
             console.log('Redirecting to teacher dashboard');
-          navigate('/teacher/dashboard', { replace: true });
-        } else {
+            navigate('/teacher/dashboard', { replace: true });
+          } else {
             console.log('Redirecting to viewer history');
-          navigate('/viewer/history', { replace: true });
-        }
+            navigate('/viewer/history', { replace: true });
+          }
         }, 100);
       } else {
         console.error('Invalid response structure:', response);
@@ -96,10 +96,10 @@ const Login = () => {
       console.error('Login error details:', err); // Debug log
       console.error('Error type:', typeof err);
       console.error('Error keys:', Object.keys(err || {}));
-      
+
       // Handle different error formats
       let errorMessage = 'Login failed. Please try again.';
-      
+
       if (typeof err === 'string') {
         errorMessage = err;
       } else if (err?.error) {
@@ -109,17 +109,17 @@ const Login = () => {
       } else if (err?.response?.data?.error) {
         errorMessage = err.response.data.error;
       }
-      
+
       // Check for network errors
       if (err?.message?.includes('Network Error') || err?.message?.includes('Failed to fetch') || err?.error === 'Network Error') {
-        errorMessage = 'Cannot connect to server. Please make sure the backend is running on port 5000.';
+        errorMessage = 'Cannot connect to server. Please check your connection.';
       }
-      
+
       // Check for MongoDB timeout errors
       if (err?.error?.includes('buffering timed out') || err?.error?.includes('MongoDB')) {
         errorMessage = 'Database connection timeout. Please check MongoDB Atlas IP whitelist and connection string.';
       }
-      
+
       setError(errorMessage);
       setToast({ message: errorMessage, type: 'error' });
     } finally {
