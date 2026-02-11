@@ -25,8 +25,11 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: config.FRONTEND_URL,
-  credentials: true,
+  origin: [
+    "http://localhost:5173",
+    "https://smartface-frontend-v5.onrender.com"
+  ],
+  credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -36,9 +39,9 @@ app.get('/api/health', (req, res) => {
   const mongoose = require('mongoose');
   const dbStatus = mongoose.connection.readyState;
   const dbConnected = dbStatus === 1;
-  
-  res.json({ 
-    status: 'ok', 
+
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     database: dbConnected ? 'connected' : 'disconnected',
     databaseStatus: dbStatus // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
