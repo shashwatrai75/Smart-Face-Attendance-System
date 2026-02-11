@@ -68,6 +68,14 @@ export const getUserActivity = (id) => {
   return axiosClient.get(`/admin/user/${id}/activity`);
 };
 
+export const uploadUserImage = (id, formData) => {
+  return axiosClient.post(`/admin/user/${id}/image`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
 // ============================================
 // CLASS MANAGEMENT
 // ============================================
