@@ -7,19 +7,23 @@ const logger = require('../utils/logger');
 
 const exportReport = async (req, res, next) => {
   try {
+    const user = req.user;
     const { classId, dateFrom, dateTo, format = 'xlsx' } = req.query;
+
+    if (user.role === 'viewer') {
+      return res.status(403).json({ error: 'Access denied. Export is not available for your role.' });
+    }
 
     if (!classId) {
       return res.status(400).json({ error: 'Class ID is required' });
     }
 
-    // Verify class exists and user has access
     const classDoc = await Class.findById(classId);
     if (!classDoc) {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    if (req.user.role === 'teacher' && classDoc.teacherId.toString() !== req.user._id.toString()) {
+    if (user.role === 'lecturer' && classDoc.lecturerId.toString() !== user._id.toString()) {
       return res.status(403).json({ error: 'Access denied to this class' });
     }
 
@@ -34,7 +38,7 @@ const exportReport = async (req, res, next) => {
     const attendance = await Attendance.find(query)
       .populate('studentId', 'fullName rollNo')
       .populate('classId', 'className')
-      .populate('teacherId', 'name')
+      .populate('lecturerId', 'name')
       .sort({ date: -1, time: -1 });
 
     if (attendance.length === 0) {
@@ -49,7 +53,7 @@ const exportReport = async (req, res, next) => {
       rollNo: record.studentId.rollNo,
       className: record.classId.className,
       status: record.status,
-      teacherName: record.teacherId.name,
+      lecturerName: record.lecturerId.name,
     }));
 
     const buffer = await exportAttendance(exportData, format);
@@ -69,20 +73,42 @@ const exportReport = async (req, res, next) => {
 // Get overall summary statistics
 const getSummary = async (req, res, next) => {
   try {
+    const user = req.user;
     const { startDate, endDate } = req.query;
 
     let classQuery = {};
     let attendanceQuery = {};
     let sessionQuery = { status: 'completed' };
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    // Role-based visibility
+    if (user.role === 'superadmin' || user.role === 'admin') {
+      // All data - no extra filters
+    } else if (user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       classQuery._id = { $in: classIds };
       attendanceQuery.classId = { $in: classIds };
       sessionQuery.classId = { $in: classIds };
-      sessionQuery.teacherId = req.user._id;
+      sessionQuery.lecturerId = user._id;
+    } else if (user.role === 'viewer') {
+      // Viewer: only their own attendance - minimal summary
+      const linkedStudentId = user.linkedStudentId;
+      if (!linkedStudentId) {
+        return res.json({
+          success: true,
+          summary: {
+            totalClasses: 0,
+            totalStudents: 0,
+            averageAttendance: 0,
+            totalSessions: 0,
+          },
+        });
+      }
+      attendanceQuery.studentId = linkedStudentId;
+      classQuery = { _id: { $in: [] } };
+      sessionQuery = { sessionId: '__viewer_no_sessions__' }; // Ensures 0 sessions for viewer
+    } else {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     // Date filters
@@ -104,10 +130,12 @@ const getSummary = async (req, res, next) => {
 
     // Get total students
     let totalStudents = 0;
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    if (user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       totalStudents = await Student.countDocuments({ classId: { $in: classIds } });
+    } else if (user.role === 'viewer') {
+      totalStudents = user.linkedStudentId ? 1 : 0;
     } else {
       totalStudents = await Student.countDocuments();
     }
@@ -153,17 +181,24 @@ const getSummary = async (req, res, next) => {
 // Get class-wise attendance data
 const getClassWiseData = async (req, res, next) => {
   try {
+    const user = req.user;
     const { startDate, endDate } = req.query;
 
     let classQuery = {};
     let attendanceQuery = {};
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    if (user.role === 'superadmin' || user.role === 'admin') {
+      // All classes
+    } else if (user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       classQuery._id = { $in: classIds };
       attendanceQuery.classId = { $in: classIds };
+    } else if (user.role === 'viewer') {
+      // Viewer: no class-wise data (they see only their own)
+      return res.json({ success: true, classWiseData: [] });
+    } else {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     // Date filters
@@ -247,15 +282,25 @@ const getClassWiseData = async (req, res, next) => {
 // Get attendance trend over time
 const getTrendData = async (req, res, next) => {
   try {
+    const user = req.user;
     const { startDate, endDate } = req.query;
 
     let attendanceQuery = {};
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    if (user.role === 'superadmin' || user.role === 'admin') {
+      // All attendance
+    } else if (user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       attendanceQuery.classId = { $in: classIds };
+    } else if (user.role === 'viewer') {
+      const linkedStudentId = user.linkedStudentId;
+      if (!linkedStudentId) {
+        return res.json({ success: true, trendData: [] });
+      }
+      attendanceQuery.studentId = linkedStudentId;
+    } else {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     // Date filters

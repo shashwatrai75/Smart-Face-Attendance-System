@@ -12,10 +12,10 @@ const attendanceSchema = new mongoose.Schema(
       ref: 'Class',
       required: [true, 'Class is required'],
     },
-    teacherId: {
+    lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Teacher is required'],
+      required: [true, 'Lecturer is required'],
     },
     date: {
       type: String,
@@ -27,10 +27,18 @@ const attendanceSchema = new mongoose.Schema(
       required: [true, 'Time is required'],
       match: [/^\d{2}:\d{2}:\d{2}$/, 'Time must be in HH:mm:ss format'],
     },
+    lastScanTime: {
+      type: Date,
+      default: Date.now,
+    },
     status: {
       type: String,
       enum: ['present', 'absent', 'late', 'excused'],
       default: 'present',
+    },
+    consecutiveLateCount: {
+      type: Number,
+      default: 0,
     },
     capturedOffline: {
       type: Boolean,
@@ -59,7 +67,7 @@ attendanceSchema.index(
 // Indexes for queries
 attendanceSchema.index({ classId: 1, date: 1 });
 attendanceSchema.index({ studentId: 1 });
-attendanceSchema.index({ teacherId: 1 });
+attendanceSchema.index({ lecturerId: 1 });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);
 

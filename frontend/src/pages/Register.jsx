@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createUser } from '../api/api';
+import { useAuth } from '../context/AuthContext';
 import { validateEmail, validatePassword } from '../utils/validators';
 import Toast from '../components/Toast';
 import Navbar from '../components/Navbar';
@@ -19,12 +20,14 @@ const Register = () => {
     country: '',
     dateOfBirth: '',
     gender: '',
-    role: 'teacher',
+    role: 'lecturer',
     institutionName: '',
+    image: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -210,6 +213,53 @@ const Register = () => {
               <div className="border-b pb-4 mb-4">
                 <h3 className="text-lg font-semibold text-gray-700 mb-4">Account Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Photo Upload Section */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Profile Photo (Optional)
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
+                        {formData.image ? (
+                          <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-gray-400 text-xs">No Photo</span>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              if (file.size > 2 * 1024 * 1024) {
+                                setToast({ message: 'File size should be less than 2MB', type: 'error' });
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setFormData({ ...formData, image: reader.result });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Recommended: Square image, max 2MB</p>
+                      </div>
+                      {formData.image && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, image: '' })}
+                          className="text-red-600 text-sm hover:underline"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Password <span className="text-red-500">*</span>
@@ -231,9 +281,12 @@ const Register = () => {
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="teacher">Teacher</option>
+                      <option value="lecturer">Lecturer</option>
                       <option value="viewer">Viewer</option>
                       <option value="admin">Admin</option>
+                      {currentUser?.role === 'superadmin' && (
+                        <option value="superadmin">Superadmin</option>
+                      )}
                     </select>
                   </div>
                   <div className="md:col-span-2">

@@ -12,12 +12,32 @@ const classSchema = new mongoose.Schema(
       required: [true, 'Subject is required'],
       trim: true,
     },
-    teacherId: {
+    lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Teacher is required'],
+      required: [true, 'Lecturer is required'],
     },
     schedule: {
+      type: String,
+      trim: true,
+    },
+    section: {
+      type: String,
+      trim: true,
+    },
+    room: {
+      type: String,
+      trim: true,
+    },
+    semester: {
+      type: String,
+      trim: true,
+    },
+    academicYear: {
+      type: String,
+      trim: true,
+    },
+    description: {
       type: String,
       trim: true,
     },
@@ -27,8 +47,8 @@ const classSchema = new mongoose.Schema(
   }
 );
 
-// Index for teacher
-classSchema.index({ teacherId: 1 });
+// Index for lecturer
+classSchema.index({ lecturerId: 1 });
 
 module.exports = mongoose.model('Class', classSchema);
 

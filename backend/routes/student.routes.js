@@ -13,10 +13,10 @@ const {
 router.use(authenticate);
 router.use(apiLimiter);
 
-router.post('/enroll', authorize('admin', 'teacher'), enrollStudent);
-router.get('/', authorize('admin', 'teacher', 'viewer'), getStudents);
-router.get('/embeddings/:classId', authorize('admin', 'teacher'), getStudentEmbeddings);
-router.delete('/:id/delete-data', authorize('admin'), deleteStudentData);
+router.post('/enroll', authorize('admin', 'lecturer'), enrollStudent);
+router.get('/', authorize('admin', 'lecturer', 'viewer'), getStudents);
+router.get('/embeddings/:classId', authorize('admin', 'lecturer'), getStudentEmbeddings);
+router.delete('/:id/delete-data', authorize('admin', 'superadmin'), deleteStudentData);
 
 module.exports = router;
 

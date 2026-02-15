@@ -30,7 +30,7 @@ const LecturerDashboard = () => {
   const handleStartAttendance = async (classId) => {
     try {
       const response = await startSession(classId);
-      navigate(`/teacher/attendance?sessionId=${response.sessionId}&classId=${classId}`);
+      navigate(`/lecturer/attendance?sessionId=${response.sessionId}&classId=${classId}`);
     } catch (err) {
       setToast({ message: err.error || 'Failed to start session', type: 'error' });
     }

@@ -21,7 +21,7 @@ const startSession = async (req, res, next) => {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    if (req.user.role === 'teacher' && classDoc.teacherId.toString() !== req.user._id.toString()) {
+    if (req.user.role === 'lecturer' && classDoc.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied to this class' });
     }
 
@@ -36,7 +36,7 @@ const startSession = async (req, res, next) => {
     const sessionDoc = await AttendanceSession.create({
       sessionId,
       classId,
-      teacherId: req.user._id,
+      lecturerId: req.user._id,
       startTime,
       date: today,
       totalStudents,
@@ -45,7 +45,7 @@ const startSession = async (req, res, next) => {
 
     activeSessions.set(sessionId, {
       classId,
-      teacherId: req.user._id,
+      lecturerId: req.user._id,
       date: today,
       createdAt: startTime,
     });
@@ -75,13 +75,82 @@ const markAttendance = async (req, res, next) => {
       return res.status(404).json({ error: 'Session not found or expired' });
     }
 
+    // Get session document to access startTime
+    const sessionDoc = await AttendanceSession.findOne({ sessionId });
+    if (!sessionDoc) {
+      return res.status(404).json({ error: 'Session document not found' });
+    }
+
     const today = new Date().toISOString().split('T')[0];
     const results = [];
+    const LATE_THRESHOLD_MINUTES = 5; // Consider late if more than 5 minutes after session start
+    const MAX_CONSECUTIVE_LATE = 3; // Mark as absent after 3 consecutive late attendances
 
     for (const record of recognizedStudents) {
       const { studentId, status, time, capturedOffline } = record;
 
       try {
+        const currentTime = new Date();
+        const lastScanTime = currentTime;
+        
+        // Calculate if attendance is late (more than threshold minutes after session start)
+        const sessionStartTime = new Date(sessionDoc.startTime);
+        const minutesLate = (currentTime - sessionStartTime) / (1000 * 60);
+        const isLate = minutesLate > LATE_THRESHOLD_MINUTES;
+
+        // Get previous attendance records to check consecutive late count
+        const previousAttendances = await Attendance.find({
+          studentId,
+          classId,
+          date: { $lt: today }, // Previous dates only
+        })
+          .sort({ date: -1 })
+          .limit(3);
+
+        // Check if previous attendances were late (consecutive)
+        let consecutiveLateCount = 0;
+        for (let i = 0; i < previousAttendances.length; i++) {
+          if (previousAttendances[i].status === 'late') {
+            consecutiveLateCount++;
+          } else {
+            break; // Break on first non-late attendance
+          }
+        }
+
+        // Determine final status
+        let finalStatus = status || 'present';
+        let finalConsecutiveLateCount = consecutiveLateCount;
+
+        if (!status) {
+          // Auto-detect status if not manually set
+          if (isLate) {
+            finalConsecutiveLateCount = consecutiveLateCount + 1;
+            // If 3 consecutive late attendances, mark as absent
+            if (finalConsecutiveLateCount >= MAX_CONSECUTIVE_LATE) {
+              finalStatus = 'absent';
+              finalConsecutiveLateCount = 0; // Reset counter
+            } else {
+              finalStatus = 'late';
+            }
+          } else {
+            // On time, reset consecutive late count
+            finalConsecutiveLateCount = 0;
+            finalStatus = 'present';
+          }
+        } else if (status === 'present' && isLate) {
+          // If manually marked present but is late, override to late
+          finalConsecutiveLateCount = consecutiveLateCount + 1;
+          if (finalConsecutiveLateCount >= MAX_CONSECUTIVE_LATE) {
+            finalStatus = 'absent';
+            finalConsecutiveLateCount = 0;
+          } else {
+            finalStatus = 'late';
+          }
+        } else if (status === 'present' && !isLate) {
+          // On time, reset consecutive late count
+          finalConsecutiveLateCount = 0;
+        }
+
         // Use upsert to prevent duplicates
         const attendance = await Attendance.findOneAndUpdate(
           {
@@ -93,10 +162,12 @@ const markAttendance = async (req, res, next) => {
           {
             studentId,
             classId,
-            teacherId: req.user._id,
+            lecturerId: req.user._id,
             date: today,
             time: time || new Date().toTimeString().split(' ')[0],
-            status: status || 'present',
+            lastScanTime: lastScanTime,
+            status: finalStatus,
+            consecutiveLateCount: finalConsecutiveLateCount,
             capturedOffline: capturedOffline || false,
             sessionId,
           },
@@ -111,6 +182,9 @@ const markAttendance = async (req, res, next) => {
           studentId,
           attendanceId: attendance._id,
           status: 'saved',
+          isLate: isLate,
+          finalStatus: finalStatus,
+          consecutiveLateCount: finalConsecutiveLateCount,
         });
       } catch (error) {
         if (error.code === 11000) {
@@ -169,8 +243,8 @@ const manualOverride = async (req, res, next) => {
       return res.status(404).json({ error: 'Attendance record not found' });
     }
 
-    // Verify teacher has access
-    if (req.user.role === 'teacher' && attendance.teacherId.toString() !== req.user._id.toString()) {
+    // Verify lecturer has access
+    if (req.user.role === 'lecturer' && attendance.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -185,6 +259,7 @@ const manualOverride = async (req, res, next) => {
 
 const getAttendanceHistory = async (req, res, next) => {
   try {
+    const user = req.user;
     const { classId, dateFrom, dateTo, studentId } = req.query;
 
     let query = {};
@@ -203,22 +278,35 @@ const getAttendanceHistory = async (req, res, next) => {
       if (dateTo) query.date.$lte = dateTo;
     }
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
-      if (classId && !classIds.includes(classId)) {
-        return res.status(403).json({ error: 'Access denied to this class' });
+    // Role-based visibility: superadmin/admin see all, lecturer sees assigned classes only, viewer sees own only
+    if (user.role === 'superadmin' || user.role === 'admin') {
+      // Return all attendance - no extra filters
+    } else if (user.role === 'lecturer') {
+      // Lecturer: only student attendance in their assigned classes (classes where they are lecturer)
+      const assignedClasses = await Class.find({ lecturerId: user._id }).select('_id');
+      const classIds = assignedClasses.map((c) => c._id);
+      if (classIds.length === 0) {
+        return res.json({ success: true, attendance: [], count: 0 });
       }
-      if (!classId) {
-        query.classId = { $in: classIds };
+      if (classId && !classIds.some((c) => c.toString() === classId)) {
+        return res.status(403).json({ error: 'Access denied. You do not have access to this class.' });
       }
+      query.classId = classId ? classId : { $in: classIds };
+    } else if (user.role === 'viewer') {
+      // Viewer: only their own attendance (studentId must match linked student)
+      const linkedStudentId = user.linkedStudentId;
+      if (!linkedStudentId) {
+        return res.status(403).json({ error: 'Your account is not linked to a student record. Contact administrator.' });
+      }
+      query.studentId = linkedStudentId;
+    } else {
+      return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
     }
 
     const attendance = await Attendance.find(query)
       .populate('studentId', 'fullName rollNo')
       .populate('classId', 'className subject')
-      .populate('teacherId', 'name')
+      .populate('lecturerId', 'name')
       .sort({ date: -1, time: -1 })
       .limit(1000);
 
@@ -235,6 +323,7 @@ const getAttendanceHistory = async (req, res, next) => {
 // New endpoint: Get session-based attendance history
 const getSessionHistory = async (req, res, next) => {
   try {
+    const user = req.user;
     const { classId, startDate, endDate } = req.query;
 
     let query = { status: 'completed' };
@@ -249,22 +338,30 @@ const getSessionHistory = async (req, res, next) => {
       if (endDate) query.date.$lte = endDate;
     }
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
-      if (classId && !classIds.includes(classId)) {
-        return res.status(403).json({ error: 'Access denied to this class' });
+    // Role-based visibility
+    if (user.role === 'superadmin' || user.role === 'admin') {
+      // Return all sessions
+    } else if (user.role === 'lecturer') {
+      const assignedClasses = await Class.find({ lecturerId: user._id }).select('_id');
+      const classIds = assignedClasses.map((c) => c._id);
+      if (classIds.length === 0) {
+        return res.json({ success: true, sessions: [], count: 0 });
       }
-      if (!classId) {
-        query.classId = { $in: classIds };
+      if (classId && !classIds.some((c) => c.toString() === classId)) {
+        return res.status(403).json({ error: 'Access denied. You do not have access to this class.' });
       }
-      query.teacherId = req.user._id;
+      query.classId = classId ? classId : { $in: classIds };
+      query.lecturerId = user._id;
+    } else if (user.role === 'viewer') {
+      // Viewer: cannot see session list (sessions are teacher activity); return empty
+      return res.json({ success: true, sessions: [], count: 0 });
+    } else {
+      return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
     }
 
     const sessions = await AttendanceSession.find(query)
       .populate('classId', 'className subject')
-      .populate('teacherId', 'name')
+      .populate('lecturerId', 'name')
       .sort({ date: -1, startTime: -1 })
       .limit(500);
 
@@ -323,7 +420,7 @@ const getSessionHistory = async (req, res, next) => {
           classId: session.classId,
           className: session.classId?.className || 'N/A',
           subject: session.classId?.subject || 'N/A',
-          teacherName: session.teacherId?.name || 'N/A',
+          lecturerName: session.lecturerId?.name || 'N/A',
           totalStudents: session.totalStudents,
           presentCount,
           absentCount,
@@ -349,24 +446,35 @@ const getSessionHistory = async (req, res, next) => {
 // New endpoint: Get detailed attendance for a specific session
 const getSessionDetails = async (req, res, next) => {
   try {
+    const user = req.user;
     const { sessionId } = req.params;
 
     if (!sessionId) {
       return res.status(400).json({ error: 'Session ID is required' });
     }
 
+    // Viewer cannot access session details (teacher activity)
+    if (user.role === 'viewer') {
+      return res.status(403).json({ error: 'Access denied. You can only view your own attendance records.' });
+    }
+
     // Find session
     const session = await AttendanceSession.findOne({ sessionId })
       .populate('classId', 'className subject')
-      .populate('teacherId', 'name');
+      .populate('lecturerId', 'name');
 
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Verify access
-    if (req.user.role === 'teacher' && session.teacherId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: 'Access denied to this session' });
+    // Verify access for lecturer (admin/superadmin can access any)
+    if (user.role === 'lecturer') {
+      const assignedClasses = await Class.find({ lecturerId: user._id }).select('_id');
+      const classIds = assignedClasses.map((c) => c.toString());
+      const sessionClassId = session.classId?._id?.toString() || session.classId?.toString();
+      if (!sessionClassId || !classIds.includes(sessionClassId)) {
+        return res.status(403).json({ error: 'Access denied to this session' });
+      }
     }
 
     // Get all attendance records for this session
@@ -395,6 +503,8 @@ const getSessionDetails = async (req, res, next) => {
           status: record.status,
           timestamp: `${record.date} ${record.time}`,
           time: record.time,
+          lastScanTime: record.lastScanTime || null,
+          consecutiveLateCount: record.consecutiveLateCount || 0,
           remark: record.remark || null,
         };
       } else {
@@ -405,6 +515,8 @@ const getSessionDetails = async (req, res, next) => {
           status: 'absent',
           timestamp: null,
           time: null,
+          lastScanTime: null,
+          consecutiveLateCount: 0,
           remark: null,
         };
       }
@@ -432,7 +544,7 @@ const getSessionDetails = async (req, res, next) => {
         date: session.date,
         className: session.classId?.className || 'N/A',
         subject: session.classId?.subject || 'N/A',
-        teacherName: session.teacherId?.name || 'N/A',
+        lecturerName: session.lecturerId?.name || 'N/A',
         startTime: session.startTime,
         endTime: session.endTime,
         duration: formatDuration(duration),
@@ -442,6 +554,92 @@ const getSessionDetails = async (req, res, next) => {
         lateCount: session.lateCount,
       },
       studentAttendance,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Calendar endpoint: get attendance aggregated by date for calendar view
+const getCalendarAttendance = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const { month, year, classId, studentId, lecturerId } = req.query;
+
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    if (isNaN(m) || isNaN(y) || m < 1 || m > 12) {
+      return res.status(400).json({ error: 'Valid month (1-12) and year are required' });
+    }
+
+    const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    let query = { date: { $gte: startDate, $lte: endDate } };
+
+    if (classId) query.classId = classId;
+    if (studentId) query.studentId = studentId;
+    if (lecturerId) query.lecturerId = lecturerId;
+
+    // Role-based filtering (backend enforcement)
+    if (user.role === 'superadmin' || user.role === 'admin') {
+      // No extra filters - can use classId, studentId, lecturerId from query
+    } else if (user.role === 'lecturer') {
+      const assignedClasses = await Class.find({ lecturerId: user._id }).select('_id');
+      const classIds = assignedClasses.map((c) => c._id);
+      if (classIds.length === 0) {
+        return res.json({ success: true, byDate: {}, details: [], summary: { totalPresent: 0, totalLate: 0, totalAbsent: 0, attendancePercent: 0 } });
+      }
+      if (classId && !classIds.some((c) => c.toString() === classId)) {
+        return res.status(403).json({ error: 'Access denied to this class.' });
+      }
+      query.classId = classId || { $in: classIds };
+    } else if (user.role === 'viewer') {
+      const linkedStudentId = user.linkedStudentId;
+      if (!linkedStudentId) {
+        return res.status(403).json({ error: 'Your account is not linked to a student record.' });
+      }
+      query.studentId = linkedStudentId;
+    } else {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
+    const attendance = await Attendance.find(query)
+      .populate('studentId', 'fullName rollNo')
+      .populate('classId', 'className subject')
+      .populate('lecturerId', 'name')
+      .sort({ date: 1, time: 1 });
+
+    const byDate = {};
+    let totalPresent = 0;
+    let totalLate = 0;
+    let totalAbsent = 0;
+
+    attendance.forEach((rec) => {
+      const d = rec.date;
+      if (!byDate[d]) byDate[d] = { present: 0, late: 0, absent: 0 };
+      const s = rec.status || 'present';
+      if (s === 'present' || s === 'excused') {
+        byDate[d].present++;
+        totalPresent++;
+      } else if (s === 'late') {
+        byDate[d].late++;
+        totalLate++;
+      } else {
+        byDate[d].absent++;
+        totalAbsent++;
+      }
+    });
+
+    const total = totalPresent + totalLate + totalAbsent;
+    const attendancePercent = total > 0 ? Math.round((totalPresent / total) * 100) : 0;
+
+    res.json({
+      success: true,
+      byDate,
+      details: attendance,
+      summary: { totalPresent, totalLate, totalAbsent, attendancePercent },
     });
   } catch (error) {
     next(error);
@@ -461,8 +659,8 @@ const endSession = async (req, res, next) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Verify teacher owns this session
-    if (session.teacherId.toString() !== req.user._id.toString()) {
+    // Verify lecturer owns this session
+    if (session.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -520,6 +718,7 @@ module.exports = {
   getAttendanceHistory,
   getSessionHistory,
   getSessionDetails,
+  getCalendarAttendance,
   endSession,
 };
 
