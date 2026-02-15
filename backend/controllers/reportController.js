@@ -19,7 +19,7 @@ const exportReport = async (req, res, next) => {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    if (req.user.role === 'teacher' && classDoc.teacherId.toString() !== req.user._id.toString()) {
+    if (req.user.role === 'lecturer' && classDoc.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied to this class' });
     }
 
@@ -34,7 +34,7 @@ const exportReport = async (req, res, next) => {
     const attendance = await Attendance.find(query)
       .populate('studentId', 'fullName rollNo')
       .populate('classId', 'className')
-      .populate('teacherId', 'name')
+      .populate('lecturerId', 'name')
       .sort({ date: -1, time: -1 });
 
     if (attendance.length === 0) {
@@ -49,7 +49,7 @@ const exportReport = async (req, res, next) => {
       rollNo: record.studentId.rollNo,
       className: record.classId.className,
       status: record.status,
-      teacherName: record.teacherId.name,
+      lecturerName: record.lecturerId.name,
     }));
 
     const buffer = await exportAttendance(exportData, format);
@@ -75,14 +75,14 @@ const getSummary = async (req, res, next) => {
     let attendanceQuery = {};
     let sessionQuery = { status: 'completed' };
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    // If lecturer, only show their classes
+    if (req.user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: req.user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       classQuery._id = { $in: classIds };
       attendanceQuery.classId = { $in: classIds };
       sessionQuery.classId = { $in: classIds };
-      sessionQuery.teacherId = req.user._id;
+      sessionQuery.lecturerId = req.user._id;
     }
 
     // Date filters
@@ -104,9 +104,9 @@ const getSummary = async (req, res, next) => {
 
     // Get total students
     let totalStudents = 0;
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    if (req.user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: req.user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       totalStudents = await Student.countDocuments({ classId: { $in: classIds } });
     } else {
       totalStudents = await Student.countDocuments();
@@ -158,10 +158,10 @@ const getClassWiseData = async (req, res, next) => {
     let classQuery = {};
     let attendanceQuery = {};
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    // If lecturer, only show their classes
+    if (req.user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: req.user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       classQuery._id = { $in: classIds };
       attendanceQuery.classId = { $in: classIds };
     }
@@ -251,10 +251,10 @@ const getTrendData = async (req, res, next) => {
 
     let attendanceQuery = {};
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    // If lecturer, only show their classes
+    if (req.user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: req.user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       attendanceQuery.classId = { $in: classIds };
     }
 

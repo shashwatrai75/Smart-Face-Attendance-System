@@ -137,21 +137,21 @@ const LiveAttendance = () => {
 
       try {
         const detection = await detectFace(videoRef.current);
-        
+
         // Draw bounding box on canvas
         if (canvasRef.current && detection && videoRef.current.videoWidth > 0) {
           const canvas = canvasRef.current;
           const ctx = canvas.getContext('2d');
           canvas.width = videoRef.current.videoWidth;
           canvas.height = videoRef.current.videoHeight;
-          
+
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          
+
           const box = detection.detection.box;
           ctx.strokeStyle = '#00ff00';
           ctx.lineWidth = 2;
           ctx.strokeRect(box.x, box.y, box.width, box.height);
-          
+
           // Draw label
           ctx.fillStyle = '#00ff00';
           ctx.font = '16px Arial';
@@ -204,9 +204,9 @@ const LiveAttendance = () => {
     if (isOnline) {
       try {
         await markAttendance(sessionId, selectedClassId, [attendanceData]);
-        setToast({ 
-          message: `✓ ${fullName} (${rollNo}) marked present`, 
-          type: 'success' 
+        setToast({
+          message: `✓ ${fullName} (${rollNo}) marked present`,
+          type: 'success'
         });
       } catch (err) {
         await saveAttendanceOffline(sessionId, selectedClassId, studentId, 'present', time);
@@ -286,7 +286,7 @@ const LiveAttendance = () => {
 
     // Redirect to history after 2 seconds
     setTimeout(() => {
-      navigate('/teacher/history');
+      navigate('/lecturer/history');
     }, 2000);
   };
 
@@ -314,7 +314,7 @@ const LiveAttendance = () => {
         <main className="flex-1 p-8">
           <div className="mb-6">
             <h1 className="text-3xl font-bold mb-4">Live Attendance Session</h1>
-            
+
             {/* Top Controls */}
             <div className="bg-white p-4 rounded-lg shadow mb-6">
               <div className="flex flex-wrap gap-4 items-end">
@@ -388,7 +388,7 @@ const LiveAttendance = () => {
                 {/* Right: Attendance Status Panel */}
                 <div className="bg-white p-6 rounded-lg shadow">
                   <h2 className="text-xl font-bold mb-4">Attendance Status</h2>
-                  
+
                   {/* Statistics Cards */}
                   <div className="grid grid-cols-3 gap-4 mb-6">
                     <div className="bg-blue-50 p-4 rounded-lg text-center">
@@ -440,11 +440,10 @@ const LiveAttendance = () => {
                         return (
                           <div
                             key={student.id}
-                            className={`flex justify-between items-center p-2 rounded ${
-                              record
+                            className={`flex justify-between items-center p-2 rounded ${record
                                 ? 'bg-green-50 border border-green-200'
                                 : 'bg-gray-50 border border-gray-200'
-                            }`}
+                              }`}
                           >
                             <div className="flex-1">
                               <p className="font-medium text-sm">{student.fullName}</p>

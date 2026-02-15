@@ -87,8 +87,8 @@ export const getClasses = () => {
   return axiosClient.get('/classes');
 };
 
-export const getClassesByTeacher = (teacherId) => {
-  return axiosClient.get(`/classes/teacher/${teacherId}`);
+export const getClassesByLecturer = (lecturerId) => {
+  return axiosClient.get(`/classes/lecturer/${lecturerId}`);
 };
 
 export const updateClass = (id, classData) => {

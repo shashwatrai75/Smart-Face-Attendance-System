@@ -21,7 +21,7 @@ const startSession = async (req, res, next) => {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    if (req.user.role === 'teacher' && classDoc.teacherId.toString() !== req.user._id.toString()) {
+    if (req.user.role === 'lecturer' && classDoc.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied to this class' });
     }
 
@@ -36,7 +36,7 @@ const startSession = async (req, res, next) => {
     const sessionDoc = await AttendanceSession.create({
       sessionId,
       classId,
-      teacherId: req.user._id,
+      lecturerId: req.user._id,
       startTime,
       date: today,
       totalStudents,
@@ -45,7 +45,7 @@ const startSession = async (req, res, next) => {
 
     activeSessions.set(sessionId, {
       classId,
-      teacherId: req.user._id,
+      lecturerId: req.user._id,
       date: today,
       createdAt: startTime,
     });
@@ -93,7 +93,7 @@ const markAttendance = async (req, res, next) => {
           {
             studentId,
             classId,
-            teacherId: req.user._id,
+            lecturerId: req.user._id,
             date: today,
             time: time || new Date().toTimeString().split(' ')[0],
             status: status || 'present',
@@ -169,8 +169,8 @@ const manualOverride = async (req, res, next) => {
       return res.status(404).json({ error: 'Attendance record not found' });
     }
 
-    // Verify teacher has access
-    if (req.user.role === 'teacher' && attendance.teacherId.toString() !== req.user._id.toString()) {
+    // Verify lecturer has access
+    if (req.user.role === 'lecturer' && attendance.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -203,10 +203,10 @@ const getAttendanceHistory = async (req, res, next) => {
       if (dateTo) query.date.$lte = dateTo;
     }
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    // If lecturer, only show their classes
+    if (req.user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: req.user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       if (classId && !classIds.includes(classId)) {
         return res.status(403).json({ error: 'Access denied to this class' });
       }
@@ -218,7 +218,7 @@ const getAttendanceHistory = async (req, res, next) => {
     const attendance = await Attendance.find(query)
       .populate('studentId', 'fullName rollNo')
       .populate('classId', 'className subject')
-      .populate('teacherId', 'name')
+      .populate('lecturerId', 'name')
       .sort({ date: -1, time: -1 })
       .limit(1000);
 
@@ -249,22 +249,22 @@ const getSessionHistory = async (req, res, next) => {
       if (endDate) query.date.$lte = endDate;
     }
 
-    // If teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+    // If lecturer, only show their classes
+    if (req.user.role === 'lecturer') {
+      const lecturerClasses = await Class.find({ lecturerId: req.user._id }).select('_id');
+      const classIds = lecturerClasses.map((c) => c._id);
       if (classId && !classIds.includes(classId)) {
         return res.status(403).json({ error: 'Access denied to this class' });
       }
       if (!classId) {
         query.classId = { $in: classIds };
       }
-      query.teacherId = req.user._id;
+      query.lecturerId = req.user._id;
     }
 
     const sessions = await AttendanceSession.find(query)
       .populate('classId', 'className subject')
-      .populate('teacherId', 'name')
+      .populate('lecturerId', 'name')
       .sort({ date: -1, startTime: -1 })
       .limit(500);
 
@@ -323,7 +323,7 @@ const getSessionHistory = async (req, res, next) => {
           classId: session.classId,
           className: session.classId?.className || 'N/A',
           subject: session.classId?.subject || 'N/A',
-          teacherName: session.teacherId?.name || 'N/A',
+          lecturerName: session.lecturerId?.name || 'N/A',
           totalStudents: session.totalStudents,
           presentCount,
           absentCount,
@@ -358,14 +358,14 @@ const getSessionDetails = async (req, res, next) => {
     // Find session
     const session = await AttendanceSession.findOne({ sessionId })
       .populate('classId', 'className subject')
-      .populate('teacherId', 'name');
+      .populate('lecturerId', 'name');
 
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
     // Verify access
-    if (req.user.role === 'teacher' && session.teacherId.toString() !== req.user._id.toString()) {
+    if (req.user.role === 'lecturer' && session.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied to this session' });
     }
 
@@ -432,7 +432,7 @@ const getSessionDetails = async (req, res, next) => {
         date: session.date,
         className: session.classId?.className || 'N/A',
         subject: session.classId?.subject || 'N/A',
-        teacherName: session.teacherId?.name || 'N/A',
+        lecturerName: session.lecturerId?.name || 'N/A',
         startTime: session.startTime,
         endTime: session.endTime,
         duration: formatDuration(duration),
@@ -461,8 +461,8 @@ const endSession = async (req, res, next) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Verify teacher owns this session
-    if (session.teacherId.toString() !== req.user._id.toString()) {
+    // Verify lecturer owns this session
+    if (session.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
 

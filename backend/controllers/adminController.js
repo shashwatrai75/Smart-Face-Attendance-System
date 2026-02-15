@@ -7,10 +7,10 @@ const logger = require('../utils/logger');
 
 const createUser = async (req, res, next) => {
   try {
-    const { 
-      name, 
-      email, 
-      password, 
+    const {
+      name,
+      email,
+      password,
       phone,
       address,
       city,
@@ -19,9 +19,15 @@ const createUser = async (req, res, next) => {
       country,
       dateOfBirth,
       gender,
-      role, 
-      institutionName 
+      role,
+      institutionName,
+      image
     } = req.body;
+
+    // Role restrictions: Only superadmin can create admins or superadmins
+    if (role && (role === 'admin' || role === 'superadmin') && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only Superadmins can create Admin or Superadmin users' });
+    }
 
     const user = await User.create({
       name,
@@ -35,8 +41,9 @@ const createUser = async (req, res, next) => {
       country,
       dateOfBirth: dateOfBirth || undefined,
       gender: gender || '',
-      role: role || 'teacher',
+      role: role || 'lecturer',
       institutionName,
+      image,
       status: 'active',
     });
 
@@ -87,15 +94,21 @@ const updateUserStatus = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
+    const userToUpdate = await User.findById(id);
+    if (!userToUpdate) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Role restrictions: Admins cannot update other admins or superadmins
+    if ((userToUpdate.role === 'admin' || userToUpdate.role === 'superadmin') && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Access denied. You cannot modify Admin or Superadmin status.' });
+    }
+
     const user = await User.findByIdAndUpdate(
       id,
       { status },
       { new: true, runValidators: true }
     ).select('-passwordHash');
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
 
     await AuditLog.create({
       actorUserId: req.user._id,
@@ -120,16 +133,22 @@ const deleteUser = async (req, res, next) => {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    const user = await User.findByIdAndDelete(id);
-
-    if (!user) {
+    const userToDelete = await User.findById(id);
+    if (!userToDelete) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    // Role restrictions: Admins cannot delete other admins or superadmins
+    if ((userToDelete.role === 'admin' || userToDelete.role === 'superadmin') && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Access denied. You cannot delete Admin or Superadmin accounts.' });
+    }
+
+    await User.findByIdAndDelete(id);
 
     await AuditLog.create({
       actorUserId: req.user._id,
       action: 'DELETE_USER',
-      metadata: { deletedUserId: id, email: user.email },
+      metadata: { deletedUserId: id, email: userToDelete.email },
     });
 
     res.json({
@@ -151,7 +170,7 @@ const getStats = async (req, res, next) => {
     const today = new Date().toISOString().split('T')[0];
     const todayAttendance = await Attendance.countDocuments({ date: today });
 
-    const activeTeachers = await User.countDocuments({ role: 'teacher', status: 'active' });
+    const activeLecturers = await User.countDocuments({ role: 'lecturer', status: 'active' });
 
     // Advanced metrics
     const verifiedUsers = await User.countDocuments({ verified: true });
@@ -166,7 +185,7 @@ const getStats = async (req, res, next) => {
       success: true,
       stats: {
         totalUsers,
-        activeTeachers,
+        activeLecturers,
         totalClasses,
         totalStudents,
         totalAttendance,
@@ -289,6 +308,40 @@ const getUserActivity = async (req, res, next) => {
   }
 };
 
+const uploadUserImage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { image } = req.body; // Expecting Base64 from frontend if not using Multer
+
+    if (!image) {
+      return res.status(400).json({ error: 'Image is required' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      { image },
+      { new: true, runValidators: true }
+    ).select('-passwordHash');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await AuditLog.create({
+      actorUserId: req.user._id,
+      action: 'UPDATE_USER',
+      metadata: { userId: id, field: 'image' },
+    });
+
+    res.json({
+      success: true,
+      image: user.image,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createUser,
   getUsers,
@@ -299,5 +352,6 @@ module.exports = {
   updateUserTags,
   verifyUser,
   getUserActivity,
+  uploadUserImage,
 };
 

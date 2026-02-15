@@ -46,17 +46,13 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
     }
   }
 
-  // Normalize role: treat "lecturer" as "teacher"
-  const userRole = userWithRole.role === 'lecturer' ? 'teacher' : userWithRole.role;
-  console.log('PrivateRoute: User role:', userRole, 'Allowed roles:', allowedRoles);
-
-  if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+  if (allowedRoles.length > 0 && !allowedRoles.includes(userWithRole.role)) {
     console.log('PrivateRoute: User role not allowed, redirecting');
     // Redirect to appropriate dashboard based on role
-    if (userRole === 'admin') {
+    if (userWithRole.role === 'admin' || userWithRole.role === 'superadmin') {
       return <Navigate to="/admin/dashboard" replace />;
-    } else if (userRole === 'teacher') {
-      return <Navigate to="/teacher/dashboard" replace />;
+    } else if (userWithRole.role === 'lecturer') {
+      return <Navigate to="/lecturer/dashboard" replace />;
     } else {
       return <Navigate to="/viewer/history" replace />;
     }

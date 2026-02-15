@@ -24,8 +24,8 @@ const AttendanceHistory = () => {
 
   useEffect(() => {
     try {
-    fetchClasses();
-    fetchSessions();
+      fetchClasses();
+      fetchSessions();
     } catch (err) {
       console.error('Error initializing AttendanceHistory:', err);
       setError('Failed to initialize page');
@@ -89,8 +89,8 @@ const AttendanceHistory = () => {
     try {
       const response = await getSessionDetails(sessionId);
       if (response) {
-      setSessionDetails(response);
-      setSelectedSession(sessionId);
+        setSessionDetails(response);
+        setSelectedSession(sessionId);
       } else {
         setToast({ message: 'No session details found', type: 'error' });
       }
@@ -397,8 +397,8 @@ const AttendanceHistory = () => {
                       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                           <div>
-                            <span className="font-medium text-gray-700">Teacher:</span>{' '}
-                            <span className="text-gray-900">{sessionDetails.session.teacherName}</span>
+                            <span className="font-medium text-gray-700">Lecturer:</span>{' '}
+                            <span className="text-gray-900">{sessionDetails.session.lecturerName}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-700">Duration:</span>{' '}

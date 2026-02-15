@@ -72,9 +72,9 @@ const getStudents = async (req, res, next) => {
 
     if (classId) {
       query.classId = classId;
-    } else if (req.user.role === 'teacher') {
-      // If teacher, only show students from their classes
-      const teacherClasses = await Class.find({ teacherId: req.user._id }).select('_id');
+    } else if (req.user.role === 'lecturer') {
+      // If lecturer, only show students from their classes
+      const lecturerClasses = await Class.find({ lecturerId: req.user._id }).select('_id');
       const classIds = teacherClasses.map((c) => c._id);
       query.classId = { $in: classIds };
     }
@@ -97,13 +97,13 @@ const getStudentEmbeddings = async (req, res, next) => {
   try {
     const { classId } = req.params;
 
-    // Verify teacher has access to this class
+    // Verify lecturer has access to this class
     const classDoc = await Class.findById(classId);
     if (!classDoc) {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    if (req.user.role === 'teacher' && classDoc.teacherId.toString() !== req.user._id.toString()) {
+    if (req.user.role === 'lecturer' && classDoc.lecturerId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied to this class' });
     }
 

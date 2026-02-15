@@ -12,10 +12,10 @@ const attendanceSchema = new mongoose.Schema(
       ref: 'Class',
       required: [true, 'Class is required'],
     },
-    teacherId: {
+    lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Teacher is required'],
+      required: [true, 'Lecturer is required'],
     },
     date: {
       type: String,
@@ -59,7 +59,7 @@ attendanceSchema.index(
 // Indexes for queries
 attendanceSchema.index({ classId: 1, date: 1 });
 attendanceSchema.index({ studentId: 1 });
-attendanceSchema.index({ teacherId: 1 });
+attendanceSchema.index({ lecturerId: 1 });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);
 

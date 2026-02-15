@@ -16,13 +16,13 @@ const {
 router.use(authenticate);
 router.use(apiLimiter);
 
-router.post('/start-session', authorize('admin', 'teacher'), startSession);
-router.post('/mark', authorize('admin', 'teacher'), markAttendance);
-router.post('/end-session', authorize('admin', 'teacher'), endSession);
-router.put('/manual-override', authorize('admin', 'teacher'), manualOverride);
-router.get('/history', authorize('admin', 'teacher', 'viewer'), getAttendanceHistory);
-router.get('/sessions', authorize('admin', 'teacher', 'viewer'), getSessionHistory);
-router.get('/session/:sessionId', authorize('admin', 'teacher', 'viewer'), getSessionDetails);
+router.post('/start-session', authorize('admin', 'lecturer'), startSession);
+router.post('/mark', authorize('admin', 'lecturer'), markAttendance);
+router.post('/end-session', authorize('admin', 'lecturer'), endSession);
+router.put('/manual-override', authorize('admin', 'lecturer'), manualOverride);
+router.get('/history', authorize('admin', 'lecturer', 'viewer'), getAttendanceHistory);
+router.get('/sessions', authorize('admin', 'lecturer', 'viewer'), getSessionHistory);
+router.get('/session/:sessionId', authorize('admin', 'lecturer', 'viewer'), getSessionDetails);
 
 module.exports = router;
 

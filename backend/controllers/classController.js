@@ -4,16 +4,31 @@ const logger = require('../utils/logger');
 
 const createClass = async (req, res, next) => {
   try {
-    const { className, subject, teacherId, schedule } = req.body;
+    const {
+      className,
+      subject,
+      lecturerId,
+      schedule,
+      section,
+      room,
+      semester,
+      academicYear,
+      description
+    } = req.body;
 
     const newClass = await Class.create({
       className,
       subject,
-      teacherId,
+      lecturerId,
       schedule,
+      section,
+      room,
+      semester,
+      academicYear,
+      description,
     });
 
-    await newClass.populate('teacherId', 'name email');
+    await newClass.populate('lecturerId', 'name email');
 
     res.status(201).json({
       success: true,
@@ -28,13 +43,13 @@ const getClasses = async (req, res, next) => {
   try {
     let query = {};
 
-    // If user is teacher, only show their classes
-    if (req.user.role === 'teacher') {
-      query.teacherId = req.user._id;
+    // If user is lecturer, only show their classes
+    if (req.user.role === 'lecturer') {
+      query.lecturerId = req.user._id;
     }
 
     const classes = await Class.find(query)
-      .populate('teacherId', 'name email')
+      .populate('lecturerId', 'name email')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -46,12 +61,12 @@ const getClasses = async (req, res, next) => {
   }
 };
 
-const getClassesByTeacher = async (req, res, next) => {
+const getClassesByLecturer = async (req, res, next) => {
   try {
-    const { teacherId } = req.params;
+    const { lecturerId } = req.params;
 
-    const classes = await Class.find({ teacherId })
-      .populate('teacherId', 'name email')
+    const classes = await Class.find({ lecturerId })
+      .populate('lecturerId', 'name email')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -66,13 +81,33 @@ const getClassesByTeacher = async (req, res, next) => {
 const updateClass = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { className, subject, teacherId, schedule } = req.body;
+    const {
+      className,
+      subject,
+      lecturerId,
+      schedule,
+      section,
+      room,
+      semester,
+      academicYear,
+      description
+    } = req.body;
 
     const updatedClass = await Class.findByIdAndUpdate(
       id,
-      { className, subject, teacherId, schedule },
+      {
+        className,
+        subject,
+        lecturerId,
+        schedule,
+        section,
+        room,
+        semester,
+        academicYear,
+        description
+      },
       { new: true, runValidators: true }
-    ).populate('teacherId', 'name email');
+    ).populate('lecturerId', 'name email');
 
     if (!updatedClass) {
       return res.status(404).json({ error: 'Class not found' });
@@ -117,7 +152,7 @@ const deleteClass = async (req, res, next) => {
 module.exports = {
   createClass,
   getClasses,
-  getClassesByTeacher,
+  getClassesByLecturer,
   updateClass,
   deleteClass,
 };
