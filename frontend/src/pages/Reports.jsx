@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSummary, getClassWiseData, getTrendData, exportReport, getClasses } from '../api/api';
+import { useAuth } from '../context/AuthContext';
 import { formatDate } from '../utils/date';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -22,6 +23,8 @@ import {
 } from 'recharts';
 
 const Reports = () => {
+  const { user } = useAuth();
+  const isViewer = user?.role === 'viewer';
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -43,10 +46,10 @@ const Reports = () => {
   const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899'];
 
   useEffect(() => {
-    fetchClasses();
+    if (!isViewer) fetchClasses();
     fetchAllData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isViewer]);
 
   const fetchClasses = async () => {
     try {
@@ -153,14 +156,19 @@ getTrendData(params),
         <Sidebar />
         <main className="flex-1 p-8">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Attendance Reports & Analytics</h1>
-            <p className="text-gray-600 mt-1">View comprehensive attendance statistics and analytics</p>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isViewer ? 'My Attendance Report' : 'Attendance Reports & Analytics'}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {isViewer ? 'View your attendance statistics' : 'View comprehensive attendance statistics and analytics'}
+            </p>
           </div>
 
-          {/* Filters Section */}
+          {/* Filters Section - hide class filter and export for viewer */}
           <div className="bg-white p-6 rounded-lg shadow mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className={`grid grid-cols-1 gap-4 ${isViewer ? 'md:grid-cols-4' : 'md:grid-cols-5'}`}>
+              {!isViewer && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
                 <select
@@ -176,6 +184,7 @@ getTrendData(params),
                   ))}
                 </select>
               </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
                 <input
@@ -203,6 +212,7 @@ getTrendData(params),
                   Generate Report
                 </button>
               </div>
+              {!isViewer && (
               <div className="flex items-end gap-2">
                 <button
                   onClick={() => handleExport('xlsx')}
@@ -219,11 +229,13 @@ getTrendData(params),
                   Export CSV
                 </button>
               </div>
+              )}
             </div>
           </div>
 
-          {/* Analytics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          {/* Analytics Cards - hide global dashboard for viewer */}
+          <div className={`grid grid-cols-1 gap-6 mb-6 ${isViewer ? 'md:grid-cols-2' : 'md:grid-cols-4'}`}>
+            {!isViewer && (
             <div className="bg-white p-6 rounded-lg shadow">
               <div className="flex items-center justify-between">
                 <div>
@@ -238,10 +250,11 @@ getTrendData(params),
               </div>
             </div>
 
+            )}
             <div className="bg-white p-6 rounded-lg shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Students</p>
+                  <p className="text-sm font-medium text-gray-600">{isViewer ? 'Attendance Records' : 'Total Students'}</p>
                   <p className="text-3xl font-bold text-gray-900 mt-2">{summary.totalStudents}</p>
                 </div>
                 <div className="p-3 bg-green-100 rounded-full">
@@ -266,6 +279,7 @@ getTrendData(params),
               </div>
             </div>
 
+            {!isViewer && (
             <div className="bg-white p-6 rounded-lg shadow">
               <div className="flex items-center justify-between">
                 <div>
@@ -279,11 +293,12 @@ getTrendData(params),
                 </div>
               </div>
             </div>
+            )}
           </div>
 
-          {/* Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Bar Chart - Attendance per Class */}
+          {/* Charts Section - hide class-wise chart for viewer */}
+          <div className={`grid grid-cols-1 gap-6 mb-6 ${isViewer ? '' : 'lg:grid-cols-2'}`}>
+            {!isViewer && (
             <div className="bg-white p-6 rounded-lg shadow">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Attendance per Class</h3>
               {classWiseData.length > 0 ? (
@@ -317,8 +332,9 @@ getTrendData(params),
                 </div>
               )}
             </div>
+            )}
 
-            {/* Pie Chart - Present vs Absent Distribution */}
+            {/* Pie Chart - Status Distribution (viewer sees their own) */}
             <div className="bg-white p-6 rounded-lg shadow">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>
               {getPieChartData().length > 0 ? (

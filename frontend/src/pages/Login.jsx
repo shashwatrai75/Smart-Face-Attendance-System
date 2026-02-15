@@ -18,13 +18,11 @@ const Login = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      // Normalize role: treat "lecturer" as "teacher"
-      const userRole = user.role === 'lecturer' ? 'teacher' : user.role;
-
-      if (userRole === 'admin') {
+      const userRole = user.role;
+      if (userRole === 'admin' || userRole === 'superadmin') {
         navigate('/admin/dashboard', { replace: true });
-      } else if (userRole === 'teacher') {
-        navigate('/teacher/dashboard', { replace: true });
+      } else if (userRole === 'lecturer') {
+        navigate('/lecturer/dashboard', { replace: true });
       } else {
         navigate('/viewer/history', { replace: true });
       }
@@ -50,13 +48,10 @@ const Login = () => {
       console.log('Attempting login with:', { email, passwordLength: password.length });
       const response = await loginAPI(email, password);
       console.log('Login response:', response); // Debug log
-      console.log('Response type:', typeof response);
-      console.log('Response keys:', response ? Object.keys(response) : 'null');
 
       // Handle response - axios interceptor already unwraps response.data
       if (response && response.token && response.user) {
         console.log('Login successful, saving token and user data');
-        console.log('User data from response:', response.user);
 
         // Ensure user object has all required fields
         const userData = {
@@ -70,19 +65,17 @@ const Login = () => {
         console.log('Processed user data:', userData);
         login(response.token, userData);
 
-        // Normalize role: treat "lecturer" as "teacher"
-        const userRole = response.user.role === 'lecturer' ? 'teacher' : response.user.role;
-        console.log('User role:', userRole, 'Original role:', response.user.role);
+        const userRole = response.user.role;
+        console.log('User role:', userRole);
 
         // Small delay to ensure state is saved before navigation
         setTimeout(() => {
-          // Redirect based on role
-          if (userRole === 'admin') {
+          if (userRole === 'admin' || userRole === 'superadmin') {
             console.log('Redirecting to admin dashboard');
             navigate('/admin/dashboard', { replace: true });
-          } else if (userRole === 'teacher') {
-            console.log('Redirecting to teacher dashboard');
-            navigate('/teacher/dashboard', { replace: true });
+          } else if (userRole === 'lecturer') {
+            console.log('Redirecting to lecturer dashboard');
+            navigate('/lecturer/dashboard', { replace: true });
           } else {
             console.log('Redirecting to viewer history');
             navigate('/viewer/history', { replace: true });

@@ -6,6 +6,7 @@ import Loader from '../components/Loader';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   BarChart,
   Bar,
@@ -62,6 +63,7 @@ const UserManagement = () => {
     recentLogin: false,
     newThisMonth: false,
   });
+  const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -218,7 +220,8 @@ const UserManagement = () => {
     const active = users.filter((u) => u.status === 'active').length;
     const disabled = users.filter((u) => u.status === 'disabled').length;
     const admins = users.filter((u) => u.role === 'admin').length;
-    const teachers = users.filter((u) => u.role === 'teacher' || u.role === 'lecturer').length;
+    const superadmins = users.filter((u) => u.role === 'superadmin').length;
+    const lecturers = users.filter((u) => u.role === 'lecturer').length;
     const viewers = users.filter((u) => u.role === 'viewer').length;
     const verified = users.filter((u) => u.verified).length;
     const recentLogin = users.filter((u) => {
@@ -233,7 +236,7 @@ const UserManagement = () => {
       return userDate >= monthStart;
     }).length;
 
-    return { total, active, disabled, admins, teachers, viewers, verified, recentLogin, newThisMonth };
+    return { total, active, disabled, admins, superadmins, lecturers, viewers, verified, recentLogin, newThisMonth };
   };
 
   const stats = getStatistics();
@@ -270,6 +273,18 @@ const UserManagement = () => {
     }
 
     try {
+      // Role restrictions for bulk actions: Admins cannot manage other admins or superadmins
+      if (currentUser?.role !== 'superadmin') {
+        const restrictedUsers = selectedUsers.some((id) => {
+          const user = users.find((u) => (u._id || u.id) === id);
+          return user && (user.role === 'admin' || user.role === 'superadmin');
+        });
+        if (restrictedUsers) {
+          setToast({ message: 'Access denied. You cannot perform bulk actions on Admin or Superadmin accounts.', type: 'error' });
+          return;
+        }
+      }
+
       if (action === 'delete') {
         setConfirmDialog({
           message: `Are you sure you want to delete ${selectedUsers.length} user(s)?`,
@@ -310,7 +325,8 @@ const UserManagement = () => {
   const getRoleDistributionData = () => {
     return [
       { name: 'Admin', value: stats.admins, color: '#8b5cf6' },
-      { name: 'Teacher', value: stats.teachers, color: '#3b82f6' },
+      { name: 'Superadmin', value: stats.superadmins, color: '#ec4899' },
+      { name: 'Lecturer', value: stats.lecturers, color: '#3b82f6' },
       { name: 'Viewer', value: stats.viewers, color: '#6b7280' },
     ];
   };
@@ -706,8 +722,8 @@ const UserManagement = () => {
                     <p className="text-sm text-gray-600">Status</p>
                     <span
                       className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedUser.status === 'active'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
                         }`}
                     >
                       {selectedUser.status?.charAt(0).toUpperCase() + selectedUser.status?.slice(1) || 'Not provided'}
@@ -1017,6 +1033,7 @@ const UserManagement = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Roles</option>
+                  <option value="superadmin">Superadmin</option>
                   <option value="admin">Admin</option>
                   <option value="teacher">Teacher</option>
                   <option value="viewer">Viewer</option>
@@ -1264,8 +1281,8 @@ const UserManagement = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                               <span
                                 className={`px-2 py-1 text-xs rounded-full ${user.status === 'active'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
                                   }`}
                               >
                                 {user.status}
@@ -1366,29 +1383,34 @@ const UserManagement = () => {
                                         {comparingUsers.includes(userId) ? '✗ Remove from Compare' : '🔍 Compare'}
                                       </button>
                                       <hr className="my-1" />
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleToggleStatus(user._id || user.id, user.status);
-                                          setQuickActionsMenu(null);
-                                        }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                      >
-                                        {user.status === 'active' ? '🚫 Disable' : '✅ Enable'}
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setConfirmDialog({
-                                            message: `Are you sure you want to delete ${user.name}?`,
-                                            onConfirm: () => handleDelete(user._id || user.id),
-                                          });
-                                          setQuickActionsMenu(null);
-                                        }}
-                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                      >
-                                        🗑️ Delete
-                                      </button>
+                                      {/* Management actions restricted to superadmins for admin/superadmin accounts */}
+                                      {(currentUser?.role === 'superadmin' || (user.role !== 'admin' && user.role !== 'superadmin')) && (
+                                        <>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleToggleStatus(user._id || user.id, user.status);
+                                              setQuickActionsMenu(null);
+                                            }}
+                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                          >
+                                            {user.status === 'active' ? '🚫 Disable' : '✅ Enable'}
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setConfirmDialog({
+                                                message: `Are you sure you want to delete ${user.name}?`,
+                                                onConfirm: () => handleDelete(user._id || user.id),
+                                              });
+                                              setQuickActionsMenu(null);
+                                            }}
+                                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                          >
+                                            🗑️ Delete
+                                          </button>
+                                        </>
+                                      )}
                                     </div>
                                   </div>
                                 )}
@@ -1442,8 +1464,8 @@ const UserManagement = () => {
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
                           className={`px-3 py-1 rounded-lg text-sm ${currentPage === pageNum
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                         >
                           {pageNum}
@@ -1496,8 +1518,8 @@ const UserManagement = () => {
                             </div>
                             <span
                               className={`px-3 py-1 rounded-full text-xs font-semibold ${user.status === 'active'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
                                 }`}
                             >
                               {user.status}
@@ -1521,28 +1543,31 @@ const UserManagement = () => {
                               Joined: {new Date(user.createdAt).toLocaleDateString()}
                             </p>
                           )}
-                          <div className="flex gap-2 pt-4 border-t border-gray-200" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => handleToggleStatus(userId, user.status)}
-                              className={`flex-1 px-3 py-2 rounded transition-colors text-sm font-medium ${user.status === 'active'
+                          {/* Management actions restricted to superadmins for admin/superadmin accounts */}
+                          {(currentUser?.role === 'superadmin' || (user.role !== 'admin' && user.role !== 'superadmin')) && (
+                            <div className="flex gap-2 pt-4 border-t border-gray-200" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => handleToggleStatus(userId, user.status)}
+                                className={`flex-1 px-3 py-2 rounded transition-colors text-sm font-medium ${user.status === 'active'
                                   ? 'bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300'
                                   : 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300'
-                                }`}
-                            >
-                              {user.status === 'active' ? '🚫 Disable' : '✅ Enable'}
-                            </button>
-                            <button
-                              onClick={() =>
-                                setConfirmDialog({
-                                  message: `Are you sure you want to delete ${user.name}?`,
-                                  onConfirm: () => handleDelete(userId),
-                                })
-                              }
-                              className="flex-1 px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 border border-red-600 transition-colors shadow-sm text-sm font-medium"
-                            >
-                              🗑️ Delete
-                            </button>
-                          </div>
+                                  }`}
+                              >
+                                {user.status === 'active' ? '🚫 Disable' : '✅ Enable'}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setConfirmDialog({
+                                    message: `Are you sure you want to delete ${user.name}?`,
+                                    onConfirm: () => handleDelete(userId),
+                                  })
+                                }
+                                className="flex-1 px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 border border-red-600 transition-colors shadow-sm text-sm font-medium"
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1590,8 +1615,8 @@ const UserManagement = () => {
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
                           className={`px-3 py-1 rounded-lg text-sm ${currentPage === pageNum
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                         >
                           {pageNum}

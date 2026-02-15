@@ -6,7 +6,7 @@ const { apiLimiter } = require('../middleware/rateLimit');
 const { exportReport, getSummary, getClassWiseData, getTrendData } = require('../controllers/reportController');
 
 router.use(authenticate);
-router.use(authorize('admin', 'teacher', 'viewer'));
+router.use(authorize('superadmin', 'admin', 'lecturer', 'viewer'));
 router.use(apiLimiter);
 
 router.get('/summary', getSummary);

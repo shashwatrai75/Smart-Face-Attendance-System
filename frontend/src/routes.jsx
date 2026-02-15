@@ -9,6 +9,7 @@ import StudentEnrollment from './pages/StudentEnrollment';
 import LecturerDashboard from './pages/LecturerDashboard';
 import LiveAttendance from './pages/LiveAttendance';
 import AttendanceHistory from './pages/AttendanceHistory';
+import AttendanceCalendar from './pages/AttendanceCalendar';
 import Reports from './pages/Reports';
 import Profile from './pages/Profile';
 
@@ -19,7 +20,7 @@ const AppRoutes = () => {
       <Route
         path="/admin/register"
         element={
-          <PrivateRoute allowedRoles={['admin']}>
+          <PrivateRoute allowedRoles={['admin', 'superadmin']}>
             <Register />
           </PrivateRoute>
         }
@@ -27,7 +28,7 @@ const AppRoutes = () => {
       <Route
         path="/admin/dashboard"
         element={
-          <PrivateRoute allowedRoles={['admin']}>
+          <PrivateRoute allowedRoles={['admin', 'superadmin']}>
             <AdminDashboard />
           </PrivateRoute>
         }
@@ -35,7 +36,7 @@ const AppRoutes = () => {
       <Route
         path="/admin/users"
         element={
-          <PrivateRoute allowedRoles={['admin']}>
+          <PrivateRoute allowedRoles={['admin', 'superadmin']}>
             <UserManagement />
           </PrivateRoute>
         }
@@ -43,7 +44,7 @@ const AppRoutes = () => {
       <Route
         path="/admin/classes"
         element={
-          <PrivateRoute allowedRoles={['admin']}>
+          <PrivateRoute allowedRoles={['admin', 'superadmin']}>
             <ClassManagement />
           </PrivateRoute>
         }
@@ -51,55 +52,71 @@ const AppRoutes = () => {
       <Route
         path="/admin/reports"
         element={
-          <PrivateRoute allowedRoles={['admin']}>
+          <PrivateRoute allowedRoles={['admin', 'superadmin']}>
             <Reports />
           </PrivateRoute>
         }
       />
       <Route
-        path="/teacher/dashboard"
+        path="/admin/calendar"
         element={
-          <PrivateRoute allowedRoles={['teacher', 'lecturer']}>
+          <PrivateRoute allowedRoles={['admin', 'superadmin']}>
+            <AttendanceCalendar />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/lecturer/dashboard"
+        element={
+          <PrivateRoute allowedRoles={['lecturer', 'admin', 'superadmin']}>
             <LecturerDashboard />
           </PrivateRoute>
         }
       />
       <Route
-        path="/teacher/enroll"
+        path="/lecturer/enroll"
         element={
-          <PrivateRoute allowedRoles={['teacher', 'lecturer', 'admin']}>
+          <PrivateRoute allowedRoles={['lecturer', 'admin', 'superadmin']}>
             <StudentEnrollment />
           </PrivateRoute>
         }
       />
       <Route
-        path="/teacher/attendance"
+        path="/lecturer/attendance"
         element={
-          <PrivateRoute allowedRoles={['teacher', 'lecturer']}>
+          <PrivateRoute allowedRoles={['lecturer', 'admin', 'superadmin']}>
             <LiveAttendance />
           </PrivateRoute>
         }
       />
       <Route
-        path="/teacher/history"
+        path="/lecturer/history"
         element={
-          <PrivateRoute allowedRoles={['teacher', 'lecturer', 'admin']}>
+          <PrivateRoute allowedRoles={['lecturer', 'admin', 'superadmin']}>
             <AttendanceHistory />
           </PrivateRoute>
         }
       />
       <Route
-        path="/teacher/reports"
+        path="/lecturer/reports"
         element={
-          <PrivateRoute allowedRoles={['teacher', 'lecturer', 'admin']}>
+          <PrivateRoute allowedRoles={['lecturer', 'admin', 'superadmin']}>
             <Reports />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/lecturer/calendar"
+        element={
+          <PrivateRoute allowedRoles={['lecturer', 'admin', 'superadmin']}>
+            <AttendanceCalendar />
           </PrivateRoute>
         }
       />
       <Route
         path="/viewer/history"
         element={
-          <PrivateRoute allowedRoles={['viewer', 'teacher', 'lecturer', 'admin']}>
+          <PrivateRoute allowedRoles={['viewer', 'lecturer', 'admin', 'superadmin']}>
             <AttendanceHistory />
           </PrivateRoute>
         }
@@ -107,15 +124,23 @@ const AppRoutes = () => {
       <Route
         path="/viewer/reports"
         element={
-          <PrivateRoute allowedRoles={['viewer', 'teacher', 'lecturer', 'admin']}>
+          <PrivateRoute allowedRoles={['viewer', 'lecturer', 'admin', 'superadmin']}>
             <Reports />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/viewer/calendar"
+        element={
+          <PrivateRoute allowedRoles={['viewer', 'lecturer', 'admin', 'superadmin']}>
+            <AttendanceCalendar />
           </PrivateRoute>
         }
       />
       <Route
         path="/profile"
         element={
-          <PrivateRoute allowedRoles={['admin', 'teacher', 'lecturer', 'viewer']}>
+          <PrivateRoute allowedRoles={['admin', 'superadmin', 'lecturer', 'viewer']}>
             <Profile />
           </PrivateRoute>
         }

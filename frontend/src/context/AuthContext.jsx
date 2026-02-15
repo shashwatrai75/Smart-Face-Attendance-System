@@ -27,6 +27,7 @@ export const AuthProvider = ({ children }) => {
         email: userData.email || '',
         role: userData.role || 'viewer',
         institutionName: userData.institutionName || '',
+        linkedStudentId: userData.linkedStudentId || null,
       };
       
       console.log('AuthContext: Restoring user from localStorage:', validUserData);
@@ -51,6 +52,7 @@ export const AuthProvider = ({ children }) => {
       email: userData.email || '',
       role: userData.role || 'viewer',
       institutionName: userData.institutionName || '',
+      linkedStudentId: userData.linkedStudentId || null,
     };
     
     console.log('AuthContext: Saving complete user data:', completeUserData);

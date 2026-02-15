@@ -1,22 +1,34 @@
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useOffline } from '../context/OfflineContext';
 import { useNavigate } from 'react-router-dom';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+  const navigate = useNavigate();
+
   let isOnline = true;
   let isSyncing = false;
-  
+
   try {
     const offline = useOffline();
     isOnline = offline?.isOnline ?? true;
     isSyncing = offline?.isSyncing ?? false;
   } catch (error) {
-    // Fallback if offline context not available
     console.warn('Offline context not available:', error);
   }
-  
-  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -54,22 +66,46 @@ const Navbar = () => {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg">
+
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setShowDropdown(!showDropdown)}
+          className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all duration-200 border border-transparent hover:border-gray-200"
+        >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold">
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col items-start">
             <span className="text-gray-800 font-semibold text-sm">{user?.name}</span>
             <span className="text-gray-500 text-xs capitalize">{user?.role}</span>
           </div>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 shadow-md hover:shadow-lg transition-all duration-200 font-medium"
-        >
-          Logout
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </button>
+
+        {showDropdown && (
+          <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 transform origin-top transition-all duration-200">
+            <button
+              onClick={() => navigate('/profile')}
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              <span>👤</span> My Profile
+            </button>
+            <div className="h-px bg-gray-100 my-1 mx-2"></div>
+            <button
+              onClick={handleLogout}
+              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+            >
+              <span>🚪</span> Logout
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );

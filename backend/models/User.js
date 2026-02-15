@@ -22,8 +22,8 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'teacher', 'viewer'],
-      default: 'teacher',
+      enum: ['superadmin', 'admin', 'lecturer', 'viewer'],
+      default: 'lecturer',
     },
     status: {
       type: String,
@@ -94,6 +94,14 @@ const userSchema = new mongoose.Schema(
     },
     verifiedAt: {
       type: Date,
+    },
+    image: {
+      type: String, // Base64 or URL
+    },
+    linkedStudentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Student',
+      default: null,
     },
   },
   {

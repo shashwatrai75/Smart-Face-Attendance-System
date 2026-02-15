@@ -6,7 +6,7 @@ const { apiLimiter } = require('../middleware/rateLimit');
 const {
   createClass,
   getClasses,
-  getClassesByTeacher,
+  getClassesByLecturer,
   updateClass,
   deleteClass,
 } = require('../controllers/classController');
@@ -14,11 +14,11 @@ const {
 router.use(authenticate);
 router.use(apiLimiter);
 
-router.post('/', authorize('admin'), createClass);
+router.post('/', authorize('admin', 'superadmin'), createClass);
 router.get('/', getClasses);
-router.get('/teacher/:teacherId', authorize('admin'), getClassesByTeacher);
-router.put('/:id', authorize('admin'), updateClass);
-router.delete('/:id', authorize('admin'), deleteClass);
+router.get('/lecturer/:lecturerId', authorize('admin', 'superadmin'), getClassesByLecturer);
+router.put('/:id', authorize('admin', 'superadmin'), updateClass);
+router.delete('/:id', authorize('admin', 'superadmin'), deleteClass);
 
 module.exports = router;
 

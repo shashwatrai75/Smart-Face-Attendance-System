@@ -43,6 +43,7 @@ const Profile = () => {
           email: authUser.email,
           role: authUser.role,
           institutionName: authUser.institutionName,
+          image: authUser.image,
         });
       }
     } finally {
@@ -126,7 +127,7 @@ const Profile = () => {
   const getRoleBadgeColor = (role) => {
     const colors = {
       admin: 'bg-purple-100 text-purple-800',
-      teacher: 'bg-blue-100 text-blue-800',
+      lecturer: 'bg-blue-100 text-blue-800',
       viewer: 'bg-gray-100 text-gray-800',
     };
     return colors[role] || 'bg-gray-100 text-gray-800';
@@ -180,8 +181,12 @@ const Profile = () => {
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-6 flex-1">
-                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-2xl font-bold text-blue-600 shadow-lg">
-                    {getInitials(displayUser?.name)}
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-2xl font-bold text-blue-600 shadow-lg overflow-hidden">
+                    {displayUser?.image ? (
+                      <img src={displayUser.image} alt={displayUser.name} className="w-full h-full object-cover" />
+                    ) : (
+                      getInitials(displayUser?.name)
+                    )}
                   </div>
                   <div className="flex-1 text-white">
                     <h2 className="text-2xl font-bold mb-1">{displayUser?.name || 'User'}</h2>
@@ -248,9 +253,8 @@ const Profile = () => {
                     type="password"
                     value={passwordForm.oldPassword}
                     onChange={(e) => handlePasswordChange('oldPassword', e.target.value)}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      passwordErrors.oldPassword ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${passwordErrors.oldPassword ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     placeholder="Enter current password"
                   />
                   {passwordErrors.oldPassword && (
@@ -266,9 +270,8 @@ const Profile = () => {
                     type="password"
                     value={passwordForm.newPassword}
                     onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      passwordErrors.newPassword ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${passwordErrors.newPassword ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     placeholder="Enter new password (min. 6 characters)"
                   />
                   {passwordErrors.newPassword && (
@@ -284,9 +287,8 @@ const Profile = () => {
                     type="password"
                     value={passwordForm.confirmPassword}
                     onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      passwordErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${passwordErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     placeholder="Confirm new password"
                   />
                   {passwordErrors.confirmPassword && (

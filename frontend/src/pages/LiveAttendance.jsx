@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getClasses, getStudentEmbeddings, startSession, markAttendance, endSession as endSessionApi } from '../api/api';
 import { saveAttendanceOffline } from '../offline/syncService';
 import { loadModels, detectFace, findBestMatch } from '../ai/faceEngine';
+import { getRandomChallenge } from '../ai/livenessChallenges';
 import { useOffline } from '../context/OfflineContext';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import Loader from '../components/Loader';
 import Toast from '../components/Toast';
+import LivenessChallenge from '../components/LivenessChallenge';
 import { getCurrentTime, getToday } from '../utils/date';
 
 const LiveAttendance = () => {
@@ -17,6 +19,8 @@ const LiveAttendance = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const detectionIntervalRef = useRef(null);
+  const pendingLivenessRef = useRef(null);
+  const markPresentRef = useRef(null);
 
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState('');
@@ -30,6 +34,8 @@ const LiveAttendance = () => {
   const [modelsReady, setModelsReady] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [detectionStatus, setDetectionStatus] = useState('Waiting to start...');
+  const [pendingLiveness, setPendingLiveness] = useState(null);
+  pendingLivenessRef.current = pendingLiveness;
 
   // Load classes on mount
   useEffect(() => {
@@ -134,24 +140,25 @@ const LiveAttendance = () => {
 
     detectionIntervalRef.current = setInterval(async () => {
       if (!videoRef.current || !modelsReady || !isSessionActive) return;
+      if (pendingLivenessRef.current) return; // Pause matching during liveness challenge
 
       try {
         const detection = await detectFace(videoRef.current);
-        
+
         // Draw bounding box on canvas
         if (canvasRef.current && detection && videoRef.current.videoWidth > 0) {
           const canvas = canvasRef.current;
           const ctx = canvas.getContext('2d');
           canvas.width = videoRef.current.videoWidth;
           canvas.height = videoRef.current.videoHeight;
-          
+
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          
+
           const box = detection.detection.box;
           ctx.strokeStyle = '#00ff00';
           ctx.lineWidth = 2;
           ctx.strokeRect(box.x, box.y, box.width, box.height);
-          
+
           // Draw label
           ctx.fillStyle = '#00ff00';
           ctx.font = '16px Arial';
@@ -163,7 +170,11 @@ const LiveAttendance = () => {
           const match = findBestMatch(embedding, students, 0.6);
 
           if (match && !attendanceRecords.has(match.studentId)) {
-            await markPresent(match.studentId, match.fullName, match.rollNo);
+            // Require liveness before marking attendance
+            setPendingLiveness({
+              match,
+              challenge: getRandomChallenge(),
+            });
           }
         } else if (canvasRef.current) {
           // Clear canvas if no face detected
@@ -177,6 +188,18 @@ const LiveAttendance = () => {
     }, 1000); // Check every 1 second
   };
 
+  const handleLivenessSuccess = useCallback(() => {
+    const pending = pendingLivenessRef.current;
+    if (!pending || !markPresentRef.current) return;
+    setPendingLiveness(null);
+    markPresentRef.current(pending.match.studentId, pending.match.fullName, pending.match.rollNo);
+  }, []);
+
+  const handleLivenessFail = useCallback(() => {
+    setPendingLiveness(null);
+    setToast({ message: 'Liveness failed. Try again.', type: 'error' });
+  }, []);
+
   const markPresent = async (studentId, fullName, rollNo) => {
     const time = getCurrentTime();
     const newRecord = {
@@ -184,6 +207,7 @@ const LiveAttendance = () => {
       time,
       name: fullName,
       rollNo,
+      lastScanTime: new Date(),
     };
 
     // Update local state immediately
@@ -203,10 +227,37 @@ const LiveAttendance = () => {
 
     if (isOnline) {
       try {
-        await markAttendance(sessionId, selectedClassId, [attendanceData]);
-        setToast({ 
-          message: `✓ ${fullName} (${rollNo}) marked present`, 
-          type: 'success' 
+        const response = await markAttendance(sessionId, selectedClassId, [attendanceData]);
+        const result = response.results?.[0];
+        const finalStatus = result?.finalStatus || 'present';
+        const isLate = result?.isLate || false;
+        const consecutiveLateCount = result?.consecutiveLateCount || 0;
+        
+        // Update record with final status
+        setAttendanceRecords((prev) => {
+          const updated = new Map(prev);
+          const record = updated.get(studentId);
+          if (record) {
+            updated.set(studentId, {
+              ...record,
+              status: finalStatus,
+              isLate,
+              consecutiveLateCount,
+            });
+          }
+          return updated;
+        });
+
+        let message = `✓ ${fullName} (${rollNo}) marked ${finalStatus}`;
+        if (isLate && finalStatus === 'late') {
+          message += ` (Late - ${consecutiveLateCount} consecutive)`;
+        } else if (finalStatus === 'absent') {
+          message += ` (3 consecutive late attendances)`;
+        }
+        
+        setToast({
+          message,
+          type: finalStatus === 'absent' ? 'error' : isLate ? 'warning' : 'success'
         });
       } catch (err) {
         await saveAttendanceOffline(sessionId, selectedClassId, studentId, 'present', time);
@@ -217,6 +268,7 @@ const LiveAttendance = () => {
       setToast({ message: `${fullName} saved offline`, type: 'warning' });
     }
   };
+  markPresentRef.current = markPresent;
 
   const handleManualMark = async (studentId, status) => {
     const student = students.find((s) => s.id === studentId);
@@ -286,14 +338,20 @@ const LiveAttendance = () => {
 
     // Redirect to history after 2 seconds
     setTimeout(() => {
-      navigate('/teacher/history');
+      navigate('/lecturer/history');
     }, 2000);
   };
 
   const presentCount = Array.from(attendanceRecords.values()).filter(
     (r) => r.status === 'present'
   ).length;
-  const absentCount = students.length - presentCount;
+  const lateCount = Array.from(attendanceRecords.values()).filter(
+    (r) => r.status === 'late'
+  ).length;
+  const absentCount = Array.from(attendanceRecords.values()).filter(
+    (r) => r.status === 'absent'
+  ).length;
+  const unmarkedCount = students.length - presentCount - lateCount - absentCount;
   const recognizedList = Array.from(attendanceRecords.entries()).map(([studentId, record]) => ({
     studentId,
     ...record,
@@ -309,12 +367,21 @@ const LiveAttendance = () => {
           onClose={() => setToast(null)}
         />
       )}
+      {pendingLiveness && (
+        <LivenessChallenge
+          videoRef={videoRef}
+          challenge={pendingLiveness.challenge}
+          studentName={`${pendingLiveness.match.fullName} (${pendingLiveness.match.rollNo})`}
+          onSuccess={handleLivenessSuccess}
+          onFail={handleLivenessFail}
+        />
+      )}
       <div className="flex">
         <Sidebar />
         <main className="flex-1 p-8">
           <div className="mb-6">
             <h1 className="text-3xl font-bold mb-4">Live Attendance Session</h1>
-            
+
             {/* Top Controls */}
             <div className="bg-white p-4 rounded-lg shadow mb-6">
               <div className="flex flex-wrap gap-4 items-end">
@@ -388,9 +455,9 @@ const LiveAttendance = () => {
                 {/* Right: Attendance Status Panel */}
                 <div className="bg-white p-6 rounded-lg shadow">
                   <h2 className="text-xl font-bold mb-4">Attendance Status</h2>
-                  
+
                   {/* Statistics Cards */}
-                  <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-4 gap-3 mb-6">
                     <div className="bg-blue-50 p-4 rounded-lg text-center">
                       <div className="text-2xl font-bold text-blue-600">{students.length}</div>
                       <div className="text-sm text-gray-600">Total</div>
@@ -399,8 +466,12 @@ const LiveAttendance = () => {
                       <div className="text-2xl font-bold text-green-600">{presentCount}</div>
                       <div className="text-sm text-gray-600">Present</div>
                     </div>
+                    <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-yellow-600">{lateCount}</div>
+                      <div className="text-sm text-gray-600">Late</div>
+                    </div>
                     <div className="bg-red-50 p-4 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-red-600">{absentCount}</div>
+                      <div className="text-2xl font-bold text-red-600">{absentCount + unmarkedCount}</div>
                       <div className="text-sm text-gray-600">Absent</div>
                     </div>
                   </div>
@@ -412,21 +483,35 @@ const LiveAttendance = () => {
                       {recognizedList.length === 0 ? (
                         <p className="text-gray-500 text-center py-8">No students recognized yet</p>
                       ) : (
-                        recognizedList.map((record) => (
-                          <div
-                            key={record.studentId}
-                            className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200"
-                          >
-                            <div>
-                              <p className="font-medium">{record.name}</p>
-                              <p className="text-sm text-gray-600">Roll No: {record.rollNo}</p>
-                              <p className="text-xs text-gray-500">Time: {record.time}</p>
+                        recognizedList.map((record) => {
+                          const isLate = record.isLate || record.status === 'late';
+                          const isAbsent = record.status === 'absent';
+                          const bgColor = isAbsent ? 'bg-red-50 border-red-200' : isLate ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200';
+                          const statusColor = isAbsent ? 'bg-red-600' : isLate ? 'bg-yellow-600' : 'bg-green-600';
+                          const statusText = isAbsent ? '✗ Absent' : isLate ? '⚠ Late' : '✓ Present';
+                          const lastScanTime = record.lastScanTime ? new Date(record.lastScanTime).toLocaleTimeString() : record.time;
+                          
+                          return (
+                            <div
+                              key={record.studentId}
+                              className={`flex justify-between items-center p-3 ${bgColor} rounded-lg border`}
+                            >
+                              <div>
+                                <p className="font-medium">{record.name}</p>
+                                <p className="text-sm text-gray-600">Roll No: {record.rollNo}</p>
+                                <p className="text-xs text-gray-500">Scan Time: {lastScanTime}</p>
+                                {record.consecutiveLateCount > 0 && (
+                                  <p className="text-xs text-orange-600 font-semibold">
+                                    {record.consecutiveLateCount} consecutive late
+                                  </p>
+                                )}
+                              </div>
+                              <span className={`px-3 py-1 ${statusColor} text-white text-sm rounded-full`}>
+                                {statusText}
+                              </span>
                             </div>
-                            <span className="px-3 py-1 bg-green-600 text-white text-sm rounded-full">
-                              ✓ Present
-                            </span>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -440,11 +525,10 @@ const LiveAttendance = () => {
                         return (
                           <div
                             key={student.id}
-                            className={`flex justify-between items-center p-2 rounded ${
-                              record
+                            className={`flex justify-between items-center p-2 rounded ${record
                                 ? 'bg-green-50 border border-green-200'
                                 : 'bg-gray-50 border border-gray-200'
-                            }`}
+                              }`}
                           >
                             <div className="flex-1">
                               <p className="font-medium text-sm">{student.fullName}</p>

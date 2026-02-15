@@ -8,7 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 
 const ClassManagement = () => {
   const [classes, setClasses] = useState([]);
-  const [teachers, setTeachers] = useState([]);
+  const [lecturers, setLecturers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -16,13 +16,18 @@ const ClassManagement = () => {
   const [formData, setFormData] = useState({
     className: '',
     subject: '',
-    teacherId: '',
+    lecturerId: '',
     schedule: '',
+    section: '',
+    room: '',
+    semester: '',
+    academicYear: '',
+    description: '',
   });
 
   useEffect(() => {
     fetchClasses();
-    fetchTeachers();
+    fetchLecturers();
   }, []);
 
   const fetchClasses = async () => {
@@ -36,15 +41,15 @@ const ClassManagement = () => {
     }
   };
 
-  const fetchTeachers = async () => {
+  const fetchLecturers = async () => {
     try {
       const response = await getUsers();
-      const teacherUsers = (response.users || []).filter(
-        (u) => u.role === 'teacher' && u.status === 'active'
+      const lecturerUsers = (response.users || []).filter(
+        (u) => u.role === 'lecturer' && u.status === 'active'
       );
-      setTeachers(teacherUsers);
+      setLecturers(lecturerUsers);
     } catch (err) {
-      console.error('Failed to load teachers:', err);
+      console.error('Failed to load lecturers:', err);
     }
   };
 
@@ -54,7 +59,17 @@ const ClassManagement = () => {
       await createClass(formData);
       setToast({ message: 'Class created successfully', type: 'success' });
       setShowForm(false);
-      setFormData({ className: '', subject: '', teacherId: '', schedule: '' });
+      setFormData({
+        className: '',
+        subject: '',
+        lecturerId: '',
+        schedule: '',
+        section: '',
+        room: '',
+        semester: '',
+        academicYear: '',
+        description: '',
+      });
       fetchClasses();
     } catch (err) {
       setToast({ message: err.error || 'Failed to create class', type: 'error' });
@@ -146,18 +161,18 @@ const ClassManagement = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teacher
+                    Lecturer
                   </label>
                   <select
-                    value={formData.teacherId}
-                    onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })}
+                    value={formData.lecturerId}
+                    onChange={(e) => setFormData({ ...formData, lecturerId: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-md"
                     required
                   >
-                    <option value="">Select Teacher</option>
-                    {teachers.map((teacher) => (
-                      <option key={teacher._id || teacher.id} value={teacher._id || teacher.id}>
-                        {teacher.name} ({teacher.email})
+                    <option value="">Select Lecturer</option>
+                    {lecturers.map((lecturer) => (
+                      <option key={lecturer._id || lecturer.id} value={lecturer._id || lecturer.id}>
+                        {lecturer.name} ({lecturer.email})
                       </option>
                     ))}
                   </select>
@@ -173,6 +188,68 @@ const ClassManagement = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-md"
                     placeholder="e.g., Mon, Wed, Fri 10:00 AM"
                   />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Section (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.section}
+                      onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                      placeholder="e.g., A, B, Section 1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Room Number (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.room}
+                      onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                      placeholder="e.g., 101, Lab A"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Semester (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.semester}
+                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                      placeholder="e.g., Spring, Fall, Semester 1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Academic Year (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.academicYear}
+                      onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                      placeholder="e.g., 2023-2024"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                    rows="2"
+                    placeholder="Brief description of the class"
+                  ></textarea>
                 </div>
                 <button
                   type="submit"
@@ -190,8 +267,11 @@ const ClassManagement = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teacher</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lecturer</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Section</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Semester</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
@@ -205,10 +285,19 @@ const ClassManagement = () => {
                       {classItem.subject}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {classItem.teacherId?.name || 'N/A'}
+                      {classItem.lecturerId?.name || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {classItem.schedule || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {classItem.room || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {classItem.section || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {classItem.semester || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

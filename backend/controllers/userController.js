@@ -21,6 +21,7 @@ const getProfile = async (req, res, next) => {
         institutionName: user.institutionName,
         status: user.status,
         createdAt: user.createdAt,
+        linkedStudentId: user.linkedStudentId || null,
       },
     });
   } catch (error) {
