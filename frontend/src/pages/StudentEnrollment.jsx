@@ -67,7 +67,7 @@ const StudentEnrollment = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       {toast && (
         <Toast
@@ -81,7 +81,7 @@ const StudentEnrollment = () => {
         <main className="flex-1 p-8">
           <h1 className="text-3xl font-bold mb-6">Enroll Student</h1>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <h2 className="text-xl font-bold mb-4">Student Information</h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -147,7 +147,7 @@ const StudentEnrollment = () => {
                 </button>
               </form>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <h2 className="text-xl font-bold mb-4">Face Capture</h2>
               <p className="text-sm text-gray-600 mb-4">
                 Position your face in the camera and capture 5 samples. The system will create an average embedding.

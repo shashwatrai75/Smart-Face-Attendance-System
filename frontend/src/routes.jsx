@@ -5,11 +5,14 @@ import Register from './pages/Register';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
 import ClassManagement from './pages/ClassManagement';
+import SectionManagement from './pages/SectionManagement';
 import StudentEnrollment from './pages/StudentEnrollment';
 import LecturerDashboard from './pages/LecturerDashboard';
 import LiveAttendance from './pages/LiveAttendance';
 import AttendanceHistory from './pages/AttendanceHistory';
 import AttendanceCalendar from './pages/AttendanceCalendar';
+import Landing from './pages/Landing';
+import About from './pages/About';
 import Reports from './pages/Reports';
 import Profile from './pages/Profile';
 
@@ -46,6 +49,14 @@ const AppRoutes = () => {
         element={
           <PrivateRoute allowedRoles={['admin', 'superadmin']}>
             <ClassManagement />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/sections"
+        element={
+          <PrivateRoute allowedRoles={['admin', 'superadmin']}>
+            <SectionManagement />
           </PrivateRoute>
         }
       />
@@ -145,8 +156,9 @@ const AppRoutes = () => {
           </PrivateRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Landing />} />
+      <Route path="/about" element={<About />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

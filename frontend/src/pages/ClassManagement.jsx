@@ -89,7 +89,7 @@ const ClassManagement = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen page-bg">
         <Navbar />
         <div className="flex">
           <Sidebar />
@@ -102,7 +102,7 @@ const ClassManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       {toast && (
         <Toast
@@ -132,7 +132,7 @@ const ClassManagement = () => {
           </div>
 
           {showForm && (
-            <div className="bg-white p-6 rounded-lg shadow mb-6">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
               <h2 className="text-xl font-bold mb-4">Create New Class</h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -275,7 +275,7 @@ const ClassManagement = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {classes.map((classItem) => (
                   <tr key={classItem._id || classItem.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

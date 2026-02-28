@@ -77,6 +77,61 @@ export const uploadUserImage = (id, formData) => {
 };
 
 // ============================================
+// SECTION MANAGEMENT
+// ============================================
+export const createSection = (sectionData) => {
+  return axiosClient.post('/sections', sectionData);
+};
+
+export const getSections = () => {
+  return axiosClient.get('/sections');
+};
+
+export const getSectionById = (id) => {
+  return axiosClient.get(`/sections/${id}`);
+};
+
+export const updateSection = (id, sectionData) => {
+  return axiosClient.put(`/sections/${id}`, sectionData);
+};
+
+export const deleteSection = (id) => {
+  return axiosClient.delete(`/sections/${id}`);
+};
+
+export const addSectionMember = (sectionId, userId) => {
+  return axiosClient.post(`/sections/${sectionId}/members`, { userId });
+};
+
+export const removeSectionMember = (sectionId, userId) => {
+  return axiosClient.delete(`/sections/${sectionId}/members/${userId}`);
+};
+
+// ============================================
+// CHECK-IN (Department sections)
+// ============================================
+export const recordCheckIn = (sectionId, userId) => {
+  return axiosClient.post('/checkin/record', { sectionId, userId });
+};
+
+export const getCheckInHistory = (params) => {
+  return axiosClient.get('/checkin/history', { params });
+};
+
+export const getDepartmentMemberEmbeddings = (sectionId) => {
+  return axiosClient.get(`/checkin/embeddings/${sectionId}`);
+};
+
+export const enrollDepartmentMember = (userId, sectionId, embeddingFloatArray, embeddingVersion = 1) => {
+  return axiosClient.post('/checkin/enroll', {
+    userId,
+    sectionId,
+    embeddingFloatArray,
+    embeddingVersion,
+  });
+};
+
+// ============================================
 // CLASS MANAGEMENT
 // ============================================
 export const createClass = (classData) => {

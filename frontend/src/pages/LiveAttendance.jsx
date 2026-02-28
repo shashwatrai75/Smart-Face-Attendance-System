@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getClasses, getStudentEmbeddings, startSession, markAttendance, endSession as endSessionApi } from '../api/api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  getClasses,
+  getSections,
+  getStudentEmbeddings,
+  getDepartmentMemberEmbeddings,
+  startSession,
+  markAttendance,
+  endSession as endSessionApi,
+  recordCheckIn,
+} from '../api/api';
 import { saveAttendanceOffline } from '../offline/syncService';
 import { loadModels, detectFace, findBestMatch } from '../ai/faceEngine';
 import { getRandomChallenge } from '../ai/livenessChallenges';
@@ -14,18 +23,29 @@ import { getCurrentTime, getToday } from '../utils/date';
 
 const LiveAttendance = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isOnline } = useOffline();
+
+  const sectionType = searchParams.get('sectionType');
+  const sectionIdParam = searchParams.get('sectionId');
+  const classIdParam = searchParams.get('classId');
+  const sessionIdParam = searchParams.get('sessionId');
+
+  const isDepartmentMode = sectionType === 'department' && sectionIdParam;
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const detectionIntervalRef = useRef(null);
   const pendingLivenessRef = useRef(null);
   const markPresentRef = useRef(null);
+  const resumedRef = useRef(false);
 
   const [classes, setClasses] = useState([]);
-  const [selectedClassId, setSelectedClassId] = useState('');
+  const [sections, setSections] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState(classIdParam || '');
   const [students, setStudents] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState(new Map()); // studentId -> {status, time, name, rollNo}
+  const [departmentRecords, setDepartmentRecords] = useState(new Map()); // userId -> { action: 'check-in'|'check-out', time }
   const [sessionId, setSessionId] = useState(null);
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,10 +57,62 @@ const LiveAttendance = () => {
   const [pendingLiveness, setPendingLiveness] = useState(null);
   pendingLivenessRef.current = pendingLiveness;
 
-  // Load classes on mount
+  // Load classes/sections on mount (class mode only)
   useEffect(() => {
-    fetchClasses();
-  }, []);
+    if (!isDepartmentMode) {
+      fetchClasses();
+    } else {
+      fetchSections();
+    }
+  }, [isDepartmentMode]);
+
+  // Auto-resume class session when navigating with sessionId and classId
+  useEffect(() => {
+    if (
+      !isDepartmentMode &&
+      sessionIdParam &&
+      classIdParam &&
+      !resumedRef.current
+    ) {
+      resumedRef.current = true;
+      setSelectedClassId(classIdParam);
+      setSessionId(sessionIdParam);
+      const resumeSession = async () => {
+        setInitializing(true);
+        try {
+          if (!modelsReady) {
+            await loadModels();
+            setModelsReady(true);
+          }
+          if (!cameraReady) {
+            await initializeCamera();
+          }
+          const studentsResponse = await getStudentEmbeddings(classIdParam);
+          setStudents(studentsResponse.students || []);
+          setAttendanceRecords(new Map());
+          setIsSessionActive(true);
+          setDetectionStatus('Face detection active');
+          startFaceDetection();
+        } catch (err) {
+          setToast({ message: err.error || 'Failed to load session', type: 'error' });
+          resumedRef.current = false;
+        } finally {
+          setInitializing(false);
+        }
+      };
+      resumeSession();
+    }
+  }, [sessionIdParam, classIdParam, isDepartmentMode]);
+
+
+  const fetchSections = async () => {
+    try {
+      const response = await getSections();
+      setSections(response.sections || []);
+    } catch (err) {
+      setToast({ message: 'Failed to load sections', type: 'error' });
+    }
+  };
 
   // Cleanup on unmount
   useEffect(() => {
@@ -83,7 +155,50 @@ const LiveAttendance = () => {
     }
   };
 
+  const startDepartmentCheckIn = async () => {
+    if (!sectionIdParam) {
+      setToast({ message: 'No section selected', type: 'error' });
+      return;
+    }
+
+    setInitializing(true);
+    setDetectionStatus('Initializing...');
+
+    try {
+      if (!modelsReady) {
+        setDetectionStatus('Loading face recognition models...');
+        await loadModels();
+        setModelsReady(true);
+      }
+
+      if (!cameraReady) {
+        setDetectionStatus('Starting camera...');
+        await initializeCamera();
+      }
+
+      setDetectionStatus('Loading department members...');
+      const response = await getDepartmentMemberEmbeddings(sectionIdParam);
+      setStudents(response.students || []);
+
+      setDepartmentRecords(new Map());
+      setIsSessionActive(true);
+      setDetectionStatus('Face detection active - Scan to Check-In or Check-Out');
+      setToast({ message: 'Check-in mode active!', type: 'success' });
+      startFaceDetection();
+    } catch (err) {
+      setToast({ message: err.error || 'Failed to start', type: 'error' });
+      setDetectionStatus('Failed to start');
+    } finally {
+      setInitializing(false);
+    }
+  };
+
   const startAttendance = async () => {
+    if (isDepartmentMode) {
+      startDepartmentCheckIn();
+      return;
+    }
+
     if (!selectedClassId) {
       setToast({ message: 'Please select a class', type: 'error' });
       return;
@@ -93,37 +208,29 @@ const LiveAttendance = () => {
     setDetectionStatus('Initializing...');
 
     try {
-      // Load face models
       if (!modelsReady) {
         setDetectionStatus('Loading face recognition models...');
         await loadModels();
         setModelsReady(true);
       }
 
-      // Initialize camera
       if (!cameraReady) {
         setDetectionStatus('Starting camera...');
         await initializeCamera();
       }
 
-      // Start session
       setDetectionStatus('Starting attendance session...');
       const sessionResponse = await startSession(selectedClassId);
       setSessionId(sessionResponse.sessionId);
 
-      // Load student embeddings
       setDetectionStatus('Loading student data...');
       const studentsResponse = await getStudentEmbeddings(selectedClassId);
       setStudents(studentsResponse.students || []);
 
-      // Reset attendance records
       setAttendanceRecords(new Map());
-
       setIsSessionActive(true);
       setDetectionStatus('Face detection active');
       setToast({ message: 'Attendance session started!', type: 'success' });
-
-      // Start detection loop
       startFaceDetection();
     } catch (err) {
       setToast({ message: err.error || 'Failed to start session', type: 'error' });
@@ -169,7 +276,7 @@ const LiveAttendance = () => {
           const embedding = Array.from(detection.descriptor);
           const match = findBestMatch(embedding, students, 0.6);
 
-          if (match && !attendanceRecords.has(match.studentId)) {
+          if (match && (isDepartmentMode || !attendanceRecords.has(match.studentId))) {
             // Require liveness before marking attendance
             setPendingLiveness({
               match,
@@ -201,6 +308,31 @@ const LiveAttendance = () => {
   }, []);
 
   const markPresent = async (studentId, fullName, rollNo) => {
+    if (isDepartmentMode) {
+      try {
+        const response = await recordCheckIn(sectionIdParam, studentId);
+        const action = response.action || 'check-in';
+        const record = response.record || {};
+        setDepartmentRecords((prev) => {
+          const updated = new Map(prev);
+          updated.set(studentId, {
+            action,
+            time: new Date(),
+            workMinutes: record.workMinutes,
+          });
+          return updated;
+        });
+        const msg =
+          action === 'check-out' && record.workMinutes
+            ? `✓ ${fullName} checked out. Work: ${record.workMinutes} min`
+            : `✓ ${fullName} checked in`;
+        setToast({ message: msg, type: 'success' });
+      } catch (err) {
+        setToast({ message: err.error || 'Failed to record', type: 'error' });
+      }
+      return;
+    }
+
     const time = getCurrentTime();
     const newRecord = {
       status: 'present',
@@ -312,17 +444,14 @@ const LiveAttendance = () => {
   const endSession = async () => {
     if (!isSessionActive) return;
 
-    // Stop detection
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
       detectionIntervalRef.current = null;
     }
 
-    // Stop camera
     stopCamera();
 
-    // End session on backend
-    if (sessionId && isOnline) {
+    if (!isDepartmentMode && sessionId && isOnline) {
       try {
         await endSessionApi(sessionId);
       } catch (err) {
@@ -333,32 +462,43 @@ const LiveAttendance = () => {
     setIsSessionActive(false);
     setSessionId(null);
     setModelsReady(false);
-    setDetectionStatus('Session ended');
-    setToast({ message: 'Attendance session ended', type: 'success' });
+    setDetectionStatus(isDepartmentMode ? 'Check-in ended' : 'Session ended');
+    setToast({
+      message: isDepartmentMode ? 'Check-in session ended' : 'Attendance session ended',
+      type: 'success',
+    });
 
-    // Redirect to history after 2 seconds
     setTimeout(() => {
-      navigate('/lecturer/history');
-    }, 2000);
+      navigate('/lecturer/dashboard');
+    }, 1500);
   };
 
-  const presentCount = Array.from(attendanceRecords.values()).filter(
-    (r) => r.status === 'present'
-  ).length;
-  const lateCount = Array.from(attendanceRecords.values()).filter(
-    (r) => r.status === 'late'
-  ).length;
-  const absentCount = Array.from(attendanceRecords.values()).filter(
-    (r) => r.status === 'absent'
-  ).length;
-  const unmarkedCount = students.length - presentCount - lateCount - absentCount;
-  const recognizedList = Array.from(attendanceRecords.entries()).map(([studentId, record]) => ({
-    studentId,
-    ...record,
-  }));
+  const presentCount = isDepartmentMode
+    ? Array.from(departmentRecords.values()).filter((r) => r.action === 'check-in' || r.action === 'check-out').length
+    : Array.from(attendanceRecords.values()).filter((r) => r.status === 'present').length;
+  const lateCount = isDepartmentMode
+    ? 0
+    : Array.from(attendanceRecords.values()).filter((r) => r.status === 'late').length;
+  const absentCount = isDepartmentMode
+    ? 0
+    : Array.from(attendanceRecords.values()).filter((r) => r.status === 'absent').length;
+  const unmarkedCount = isDepartmentMode
+    ? 0
+    : students.length - presentCount - lateCount - absentCount;
+  const recognizedList = isDepartmentMode
+    ? Array.from(departmentRecords.entries()).map(([userId, record]) => ({
+        studentId: userId,
+        ...record,
+        name: students.find((s) => s.id === userId)?.fullName || 'Unknown',
+        rollNo: students.find((s) => s.id === userId)?.rollNo || '',
+      }))
+    : Array.from(attendanceRecords.entries()).map(([studentId, record]) => ({
+        studentId,
+        ...record,
+      }));
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       {toast && (
         <Toast
@@ -383,41 +523,54 @@ const LiveAttendance = () => {
             <h1 className="text-3xl font-bold mb-4">Live Attendance Session</h1>
 
             {/* Top Controls */}
-            <div className="bg-white p-4 rounded-lg shadow mb-6">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
               <div className="flex flex-wrap gap-4 items-end">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Class
-                  </label>
-                  <select
-                    value={selectedClassId}
-                    onChange={(e) => setSelectedClassId(e.target.value)}
-                    disabled={isSessionActive}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  >
-                    <option value="">Choose a class...</option>
-                    {classes.map((classItem) => (
-                      <option key={classItem._id || classItem.id} value={classItem._id || classItem.id}>
-                        {classItem.className} - {classItem.subject}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {!isDepartmentMode ? (
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Class
+                    </label>
+                    <select
+                      value={selectedClassId}
+                      onChange={(e) => setSelectedClassId(e.target.value)}
+                      disabled={isSessionActive}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    >
+                      <option value="">Choose a class...</option>
+                      {classes.map((classItem) => (
+                        <option key={classItem._id || classItem.id} value={classItem._id || classItem.id}>
+                          {classItem.className} - {classItem.subject}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="flex-1 min-w-[200px]">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Department Check-In / Check-Out
+                    </p>
+                    <p className="text-xs text-gray-500">Section ID: {sectionIdParam}</p>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   {!isSessionActive ? (
                     <button
                       onClick={startAttendance}
-                      disabled={!selectedClassId || initializing}
+                      disabled={(!isDepartmentMode && !selectedClassId) || initializing}
                       className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
-                      {initializing ? 'Starting...' : 'Start Attendance'}
+                      {initializing
+                        ? 'Starting...'
+                        : isDepartmentMode
+                          ? 'Start Check-In'
+                          : 'Start Attendance'}
                     </button>
                   ) : (
                     <button
                       onClick={endSession}
                       className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                     >
-                      End Session
+                      {isDepartmentMode ? 'End Check-In' : 'End Session'}
                     </button>
                   )}
                 </div>
@@ -431,7 +584,7 @@ const LiveAttendance = () => {
             {isSessionActive && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left: Camera Feed */}
-                <div className="bg-white p-6 rounded-lg shadow">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
                   <h2 className="text-xl font-bold mb-4">Live Camera Feed</h2>
                   <div className="relative">
                     <video
@@ -453,42 +606,53 @@ const LiveAttendance = () => {
                 </div>
 
                 {/* Right: Attendance Status Panel */}
-                <div className="bg-white p-6 rounded-lg shadow">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
                   <h2 className="text-xl font-bold mb-4">Attendance Status</h2>
 
                   {/* Statistics Cards */}
-                  <div className="grid grid-cols-4 gap-3 mb-6">
-                    <div className="bg-blue-50 p-4 rounded-lg text-center">
+                  <div className={`grid gap-3 mb-6 ${isDepartmentMode ? 'grid-cols-2' : 'grid-cols-4'}`}>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-center">
                       <div className="text-2xl font-bold text-blue-600">{students.length}</div>
-                      <div className="text-sm text-gray-600">Total</div>
+                      <div className="text-sm text-gray-600">{isDepartmentMode ? 'Members' : 'Total'}</div>
                     </div>
-                    <div className="bg-green-50 p-4 rounded-lg text-center">
+                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg text-center">
                       <div className="text-2xl font-bold text-green-600">{presentCount}</div>
-                      <div className="text-sm text-gray-600">Present</div>
+                      <div className="text-sm text-gray-600">{isDepartmentMode ? 'Scans Today' : 'Present'}</div>
                     </div>
-                    <div className="bg-yellow-50 p-4 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-yellow-600">{lateCount}</div>
-                      <div className="text-sm text-gray-600">Late</div>
-                    </div>
-                    <div className="bg-red-50 p-4 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-red-600">{absentCount + unmarkedCount}</div>
-                      <div className="text-sm text-gray-600">Absent</div>
-                    </div>
+                    {!isDepartmentMode && (
+                      <>
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-yellow-600">{lateCount}</div>
+                          <div className="text-sm text-gray-600">Late</div>
+                        </div>
+                        <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-red-600">{absentCount + unmarkedCount}</div>
+                          <div className="text-sm text-gray-600">Absent</div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
-                  {/* Recognized Students List */}
+                  {/* Recognized Students / Department Records */}
                   <div className="mb-4">
-                    <h3 className="text-lg font-semibold mb-3">Recognized Students</h3>
+                    <h3 className="text-lg font-semibold mb-3">
+                      {isDepartmentMode ? 'Check-In / Check-Out Records' : 'Recognized Students'}
+                    </h3>
                     <div className="max-h-96 overflow-y-auto space-y-2">
-                      {recognizedList.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No students recognized yet</p>
+                      {                      recognizedList.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">
+                          {isDepartmentMode ? 'No check-ins yet' : 'No students recognized yet'}
+                        </p>
                       ) : (
                         recognizedList.map((record) => {
-                          const isLate = record.isLate || record.status === 'late';
-                          const isAbsent = record.status === 'absent';
-                          const bgColor = isAbsent ? 'bg-red-50 border-red-200' : isLate ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200';
-                          const statusColor = isAbsent ? 'bg-red-600' : isLate ? 'bg-yellow-600' : 'bg-green-600';
-                          const statusText = isAbsent ? '✗ Absent' : isLate ? '⚠ Late' : '✓ Present';
+                          const isCheckOut = isDepartmentMode && record.action === 'check-out';
+                          const isLate = !isDepartmentMode && (record.isLate || record.status === 'late');
+                          const isAbsent = !isDepartmentMode && record.status === 'absent';
+                          const bgColor = isDepartmentMode
+                            ? isCheckOut ? 'bg-teal-50 border-teal-200 dark:bg-teal-900/20' : 'bg-green-50 border-green-200 dark:bg-green-900/20'
+                            : isAbsent ? 'bg-red-50 border-red-200 dark:bg-red-900/20' : isLate ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20' : 'bg-green-50 border-green-200 dark:bg-green-900/20';
+                          const statusColor = isDepartmentMode ? (isCheckOut ? 'bg-teal-600' : 'bg-green-600') : isAbsent ? 'bg-red-600' : isLate ? 'bg-yellow-600' : 'bg-green-600';
+                          const statusText = isDepartmentMode ? (isCheckOut ? '✓ Checked Out' : '✓ Checked In') : isAbsent ? '✗ Absent' : isLate ? '⚠ Late' : '✓ Present';
                           const lastScanTime = record.lastScanTime ? new Date(record.lastScanTime).toLocaleTimeString() : record.time;
                           
                           return (
@@ -500,7 +664,10 @@ const LiveAttendance = () => {
                                 <p className="font-medium">{record.name}</p>
                                 <p className="text-sm text-gray-600">Roll No: {record.rollNo}</p>
                                 <p className="text-xs text-gray-500">Scan Time: {lastScanTime}</p>
-                                {record.consecutiveLateCount > 0 && (
+                                {isDepartmentMode && record.workMinutes && (
+                                  <p className="text-xs text-teal-600 font-medium">Work: {record.workMinutes} min</p>
+                                )}
+                                {!isDepartmentMode && record.consecutiveLateCount > 0 && (
                                   <p className="text-xs text-orange-600 font-semibold">
                                     {record.consecutiveLateCount} consecutive late
                                   </p>
@@ -516,7 +683,8 @@ const LiveAttendance = () => {
                     </div>
                   </div>
 
-                  {/* All Students List with Manual Override */}
+                  {/* All Students List with Manual Override (class mode only) */}
+                  {!isDepartmentMode && (
                   <div>
                     <h3 className="text-lg font-semibold mb-3">All Students</h3>
                     <div className="max-h-64 overflow-y-auto space-y-2">
@@ -553,17 +721,20 @@ const LiveAttendance = () => {
                       })}
                     </div>
                   </div>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Placeholder when session not active */}
             {!isSessionActive && (
-              <div className="bg-white p-12 rounded-lg shadow text-center">
-                <div className="text-6xl mb-4">📹</div>
+              <div className="bg-white dark:bg-gray-800 p-12 rounded-lg shadow text-center dark:border dark:border-gray-700">
+                <div className="text-6xl mb-4">{isDepartmentMode ? '🏢' : '📹'}</div>
                 <h3 className="text-xl font-semibold mb-2">Ready to Start</h3>
                 <p className="text-gray-600">
-                  Select a class and click "Start Attendance" to begin the live session.
+                  {isDepartmentMode
+                    ? 'Click "Start Check-In" to begin face-based check-in/check-out.'
+                    : 'Select a class and click "Start Attendance" to begin the live session.'}
                 </p>
               </div>
             )}

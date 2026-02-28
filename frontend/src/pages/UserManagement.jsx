@@ -592,7 +592,7 @@ const UserManagement = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen page-bg">
         <Navbar />
         <div className="flex">
           <Sidebar />
@@ -605,7 +605,7 @@ const UserManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       {toast && (
         <Toast

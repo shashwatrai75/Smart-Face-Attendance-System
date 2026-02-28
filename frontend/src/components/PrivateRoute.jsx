@@ -7,7 +7,7 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
   // Add timeout for loading state to prevent infinite loading
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="flex items-center justify-center min-h-screen page-bg">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
@@ -48,14 +48,14 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(userWithRole.role)) {
     console.log('PrivateRoute: User role not allowed, redirecting');
-    // Redirect to appropriate dashboard based on role
-    if (userWithRole.role === 'admin' || userWithRole.role === 'superadmin') {
+    const role = userWithRole.role;
+    if (role === 'admin' || role === 'superadmin') {
       return <Navigate to="/admin/dashboard" replace />;
-    } else if (userWithRole.role === 'lecturer') {
-      return <Navigate to="/lecturer/dashboard" replace />;
-    } else {
-      return <Navigate to="/viewer/history" replace />;
     }
+    if (role === 'lecturer') {
+      return <Navigate to="/lecturer/dashboard" replace />;
+    }
+    return <Navigate to="/viewer/history" replace />;
   }
 
   console.log('PrivateRoute: Rendering children');

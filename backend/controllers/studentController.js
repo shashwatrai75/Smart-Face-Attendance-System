@@ -76,7 +76,7 @@ const getStudents = async (req, res, next) => {
     } else if (req.user.role === 'lecturer') {
       // If lecturer, only show students from their classes
       const lecturerClasses = await Class.find({ lecturerId: req.user._id }).select('_id');
-      const classIds = teacherClasses.map((c) => c._id);
+      const classIds = lecturerClasses.map((c) => c._id);
       query.classId = { $in: classIds };
     }
 

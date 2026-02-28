@@ -130,7 +130,7 @@ getTrendData(params),
 
   if (loading && summary.totalClasses === 0) {
     return (
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen page-bg">
         <Navbar />
         <div className="flex">
           <Sidebar />
@@ -143,7 +143,7 @@ getTrendData(params),
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       {toast && (
         <Toast
@@ -165,7 +165,7 @@ getTrendData(params),
           </div>
 
           {/* Filters Section - hide class filter and export for viewer */}
-          <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
             <div className={`grid grid-cols-1 gap-4 ${isViewer ? 'md:grid-cols-4' : 'md:grid-cols-5'}`}>
               {!isViewer && (
@@ -236,7 +236,7 @@ getTrendData(params),
           {/* Analytics Cards - hide global dashboard for viewer */}
           <div className={`grid grid-cols-1 gap-6 mb-6 ${isViewer ? 'md:grid-cols-2' : 'md:grid-cols-4'}`}>
             {!isViewer && (
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Classes</p>
@@ -251,7 +251,7 @@ getTrendData(params),
             </div>
 
             )}
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">{isViewer ? 'Attendance Records' : 'Total Students'}</p>
@@ -265,7 +265,7 @@ getTrendData(params),
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Average Attendance %</p>
@@ -280,7 +280,7 @@ getTrendData(params),
             </div>
 
             {!isViewer && (
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Sessions Conducted</p>
@@ -299,7 +299,7 @@ getTrendData(params),
           {/* Charts Section - hide class-wise chart for viewer */}
           <div className={`grid grid-cols-1 gap-6 mb-6 ${isViewer ? '' : 'lg:grid-cols-2'}`}>
             {!isViewer && (
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Attendance per Class</h3>
               {classWiseData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
@@ -335,7 +335,7 @@ getTrendData(params),
             )}
 
             {/* Pie Chart - Status Distribution (viewer sees their own) */}
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>
               {getPieChartData().length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
@@ -373,7 +373,7 @@ getTrendData(params),
           </div>
 
           {/* Line Chart - Attendance Trend */}
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Attendance Trend Over Time</h3>
             {trendData.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>

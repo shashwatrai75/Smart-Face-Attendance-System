@@ -18,7 +18,9 @@ const adminRoutes = require('./routes/admin.routes');         // Admin operation
 const classRoutes = require('./routes/class.routes');         // Class management
 const studentRoutes = require('./routes/student.routes');     // Student operations
 const attendanceRoutes = require('./routes/attendance.routes'); // Attendance
-const reportRoutes = require('./routes/report.routes');       // Reports
+const sectionRoutes = require('./routes/section.routes');       // Section management
+const checkInRoutes = require('./routes/checkIn.routes');       // Department check-in/out
+const reportRoutes = require('./routes/report.routes');         // Reports
 const userRoutes = require('./routes/user.routes');           // User profile
 
 const app = express();
@@ -65,6 +67,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/sections', sectionRoutes);
+app.use('/api/checkin', checkInRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 

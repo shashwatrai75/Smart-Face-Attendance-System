@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { getStats } from '../api/api';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -43,7 +44,7 @@ const AdminDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen page-bg">
         <Navbar />
         <div className="flex">
           <Sidebar />
@@ -56,7 +57,7 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       {toast && (
         <Toast
@@ -74,11 +75,26 @@ const AdminDashboard = () => {
             </h1>
             <p className="text-gray-600">Overview of your attendance system</p>
           </div>
+          <Link
+            to="/admin/sections"
+            className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg hover-lift border border-gray-100 dark:border-gray-700 flex items-center gap-4 mb-6"
+          >
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <span className="text-2xl">📂</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Manage Sections</h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Create and manage Class and Department sections
+              </p>
+            </div>
+            <span className="ml-auto text-indigo-600 dark:text-indigo-400 font-medium">→</span>
+          </Link>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {statCards.map((card, index) => (
               <div
                 key={index}
-                className="bg-white p-6 rounded-2xl shadow-lg hover-lift border border-gray-100"
+                className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg hover-lift border border-gray-100 dark:border-gray-700"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow-lg`}>

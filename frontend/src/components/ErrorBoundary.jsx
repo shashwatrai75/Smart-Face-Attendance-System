@@ -17,8 +17,8 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-          <div className="bg-white p-8 rounded-lg shadow-md max-w-md">
+        <div className="min-h-screen page-bg flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md max-w-md text-gray-900 dark:text-gray-100">
             <h2 className="text-2xl font-bold text-red-600 mb-4">Something went wrong</h2>
             <p className="text-gray-700 mb-4">
               {this.state.error?.message || 'An unexpected error occurred'}
