@@ -120,7 +120,7 @@ const AttendanceCalendar = () => {
   const selectedRecords = selectedDateStr ? getRecordsForDate(selectedDateStr) : [];
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="flex">
@@ -132,7 +132,7 @@ const AttendanceCalendar = () => {
           </div>
 
           {/* Filters - role-based */}
-          <div className="bg-white p-4 md:p-6 rounded-lg shadow mb-6">
+          <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {(canSelectTeacherOrStudent || isLecturer) && (
@@ -207,19 +207,19 @@ const AttendanceCalendar = () => {
 
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow dark:border dark:border-gray-700">
               <p className="text-sm text-gray-600">Total Present</p>
               <p className="text-2xl font-bold text-green-600">{summary.totalPresent}</p>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow dark:border dark:border-gray-700">
               <p className="text-sm text-gray-600">Total Late</p>
               <p className="text-2xl font-bold text-yellow-600">{summary.totalLate}</p>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow dark:border dark:border-gray-700">
               <p className="text-sm text-gray-600">Total Absent</p>
               <p className="text-2xl font-bold text-red-600">{summary.totalAbsent}</p>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow dark:border dark:border-gray-700">
               <p className="text-sm text-gray-600">Attendance %</p>
               <p className="text-2xl font-bold text-blue-600">{summary.attendancePercent}%</p>
             </div>

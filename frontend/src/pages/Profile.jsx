@@ -146,7 +146,7 @@ const Profile = () => {
 
   if (loading && !displayUser) {
     return (
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen page-bg">
         <Navbar />
         <div className="flex">
           <Sidebar />
@@ -159,7 +159,7 @@ const Profile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       {toast && (
         <Toast
@@ -177,7 +177,7 @@ const Profile = () => {
           </div>
 
           {/* Profile Card */}
-          <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 dark:border dark:border-gray-700 overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-6 flex-1">
@@ -242,7 +242,7 @@ const Profile = () => {
           {/* Settings Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Change Password */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 dark:border dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h3>
               <form onSubmit={handleChangePassword} className="space-y-4">
                 <div>
@@ -307,7 +307,7 @@ const Profile = () => {
             </div>
 
             {/* Account Actions */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 dark:border dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Actions</h3>
               <div className="space-y-4">
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">

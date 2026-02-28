@@ -36,7 +36,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="glass-effect shadow-lg px-6 py-4 flex justify-between items-center border-b border-gray-200">
+    <nav className="glass-effect shadow-lg px-6 py-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-700">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center shadow-glow">
@@ -48,20 +48,20 @@ const Navbar = () => {
         </div>
         <div className="flex items-center gap-3 ml-6">
           {isOnline ? (
-            <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full">
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-50 dark:bg-green-900/30 rounded-full">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              <span className="text-green-700 text-sm font-medium">Online</span>
+              <span className="text-green-700 dark:text-green-400 text-sm font-medium">Online</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1 bg-red-50 rounded-full">
+            <div className="flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-900/30 rounded-full">
               <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-              <span className="text-red-700 text-sm font-medium">Offline</span>
+              <span className="text-red-700 dark:text-red-400 text-sm font-medium">Offline</span>
             </div>
           )}
           {isSyncing && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full">
+            <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-full">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-blue-700 text-sm font-medium">Syncing...</span>
+              <span className="text-blue-700 dark:text-blue-400 text-sm font-medium">Syncing...</span>
             </div>
           )}
         </div>
@@ -70,14 +70,14 @@ const Navbar = () => {
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all duration-200 border border-transparent hover:border-gray-200"
+          className="flex items-center gap-3 px-4 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold">
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           <div className="flex flex-col items-start">
-            <span className="text-gray-800 font-semibold text-sm">{user?.name}</span>
-            <span className="text-gray-500 text-xs capitalize">{user?.role}</span>
+            <span className="text-gray-800 dark:text-gray-200 font-semibold text-sm">{user?.name}</span>
+            <span className="text-gray-500 dark:text-gray-400 text-xs capitalize">{user?.role}</span>
           </div>
           <svg
             className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`}
@@ -90,17 +90,17 @@ const Navbar = () => {
         </button>
 
         {showDropdown && (
-          <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 transform origin-top transition-all duration-200">
+          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 py-2 z-50 transform origin-top transition-all duration-200">
             <button
               onClick={() => navigate('/profile')}
-              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
             >
               <span>👤</span> My Profile
             </button>
-            <div className="h-px bg-gray-100 my-1 mx-2"></div>
+            <div className="h-px bg-gray-100 dark:bg-gray-700 my-1 mx-2"></div>
             <button
               onClick={handleLogout}
-              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2"
             >
               <span>🚪</span> Logout
             </button>

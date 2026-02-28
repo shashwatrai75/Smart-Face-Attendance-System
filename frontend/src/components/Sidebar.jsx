@@ -9,6 +9,7 @@ const Sidebar = () => {
 
   const adminLinks = [
     { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
+    { path: '/admin/sections', label: 'Manage Sections', icon: '📂' },
     { path: '/admin/users', label: 'Users', icon: '👥' },
     { path: '/admin/classes', label: 'Classes', icon: '📚' },
     { path: '/admin/calendar', label: 'Calendar', icon: '📅' },

@@ -60,7 +60,7 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen page-bg">
       <Navbar />
       <div className="flex">
         <Sidebar />
@@ -72,7 +72,7 @@ const Register = () => {
               onClose={() => setToast(null)}
             />
           )}
-          <div className="bg-white p-8 rounded-lg shadow-md max-w-3xl">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md max-w-3xl dark:border dark:border-gray-700">
             <h2 className="text-2xl font-bold mb-6">Create New User</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Personal Information Section */}

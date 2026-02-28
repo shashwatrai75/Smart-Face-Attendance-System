@@ -142,7 +142,7 @@ const AttendanceHistory = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen page-bg">
         <Navbar />
         <div className="flex">
           <Sidebar />
@@ -156,12 +156,12 @@ const AttendanceHistory = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen page-bg">
         <Navbar />
         <div className="flex">
           <Sidebar />
           <main className="flex-1 p-8 flex items-center justify-center">
-            <div className="bg-white p-6 rounded-lg shadow-md max-w-md">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md max-w-md dark:border dark:border-gray-700">
               <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
               <p className="text-gray-700 mb-4">{error}</p>
               <button
@@ -183,7 +183,7 @@ const AttendanceHistory = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100" style={{ minHeight: '100vh' }}>
+    <div className="min-h-screen page-bg" style={{ minHeight: '100vh' }}>
       <Navbar />
       {toast && (
         <Toast
@@ -194,12 +194,12 @@ const AttendanceHistory = () => {
       )}
       <div className="flex" style={{ minHeight: 'calc(100vh - 64px)' }}>
         <Sidebar />
-        <main className="flex-1 p-8" style={{ backgroundColor: '#f9fafb' }}>
+        <main className="flex-1 p-8 bg-gray-50 dark:bg-gray-900">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {isViewer ? 'My Attendance' : 'Attendance History'}
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
               {isViewer ? 'View your attendance records' : 'View previously recorded attendance sessions'}
             </p>
           </div>
@@ -231,7 +231,7 @@ const AttendanceHistory = () => {
           )}
 
           {/* Filters Section */}
-          <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
             <div className={`grid grid-cols-1 gap-4 ${isViewer ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
               {!isViewer && (
@@ -293,7 +293,7 @@ const AttendanceHistory = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {myAttendance.length === 0 ? (
                       <tr>
                         <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
@@ -356,7 +356,7 @@ const AttendanceHistory = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {sessions.length === 0 ? (
                     <tr>
                       <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
@@ -541,7 +541,7 @@ const AttendanceHistory = () => {
                               </th>
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
+                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             {sessionDetails.studentAttendance?.map((student, index) => (
                               <tr key={student.studentId || index} className="hover:bg-gray-50">
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">

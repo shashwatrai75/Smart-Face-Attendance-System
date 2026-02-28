@@ -14,6 +14,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { OfflineProvider } from './context/OfflineContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
@@ -23,9 +24,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <OfflineProvider>
-            <App />
-          </OfflineProvider>
+          <ThemeProvider>
+            <OfflineProvider>
+              <App />
+            </OfflineProvider>
+          </ThemeProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

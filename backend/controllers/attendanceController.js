@@ -2,8 +2,10 @@ const Attendance = require('../models/Attendance');
 const AttendanceSession = require('../models/AttendanceSession');
 const Student = require('../models/Student');
 const Class = require('../models/Class');
+const Section = require('../models/Section');
 const AuditLog = require('../models/AuditLog');
 const logger = require('../utils/logger');
+const { timeToMinutes, nowMinutes, todayDate, compareDates } = require('../utils/timeHelpers');
 
 let activeSessions = new Map(); // In-memory session store (use Redis in production)
 
@@ -15,7 +17,6 @@ const startSession = async (req, res, next) => {
       return res.status(400).json({ error: 'Class ID is required' });
     }
 
-    // Verify class exists and teacher has access
     const classDoc = await Class.findById(classId);
     if (!classDoc) {
       return res.status(404).json({ error: 'Class not found' });
@@ -25,14 +26,42 @@ const startSession = async (req, res, next) => {
       return res.status(403).json({ error: 'Access denied to this class' });
     }
 
+    const today = todayDate();
+    const nowMin = nowMinutes();
+
+    const section = await Section.findOne({ classId, sectionType: 'class' });
+    if (section) {
+      if (section.startDate && compareDates(today, section.startDate) < 0) {
+        return res.status(400).json({
+          error: `Attendance is only allowed from ${section.startDate}. Today is ${today}.`,
+        });
+      }
+      if (section.endDate && compareDates(today, section.endDate) > 0) {
+        return res.status(400).json({
+          error: `Attendance is only allowed until ${section.endDate}. Today is ${today}.`,
+        });
+      }
+      if (section.classStartTime && section.classEndTime) {
+        const startM = timeToMinutes(section.classStartTime);
+        const endM = timeToMinutes(section.classEndTime);
+        if (nowMin < startM) {
+          return res.status(400).json({
+            error: `Class attendance is only allowed between ${section.classStartTime} and ${section.classEndTime}. Current time is too early.`,
+          });
+        }
+        if (nowMin > endM) {
+          return res.status(400).json({
+            error: `Class attendance is only allowed between ${section.classStartTime} and ${section.classEndTime}. Current time is too late.`,
+          });
+        }
+      }
+    }
+
     const sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const today = new Date().toISOString().split('T')[0];
     const startTime = new Date();
 
-    // Get total students in class
     const totalStudents = await Student.countDocuments({ classId });
 
-    // Create session record in database
     const sessionDoc = await AttendanceSession.create({
       sessionId,
       classId,
