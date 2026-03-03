@@ -1,16 +1,12 @@
 import { useRef, useEffect, useState } from 'react';
-import { detectFace, computeEmbedding, loadModels } from '../ai/faceEngine';
-import { checkLiveness, resetLiveness } from '../ai/liveness';
 
 const FaceCamera = ({ onCapture, onError, samplesRequired = 5 }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [samples, setSamples] = useState([]);
-  const [livenessPassed, setLivenessPassed] = useState(false);
   const [status, setStatus] = useState('Initializing...');
-  const [faceDetected, setFaceDetected] = useState(false);
-  const [modelsReady, setModelsReady] = useState(false);
+  const [videoOrientation, setVideoOrientation] = useState(0); // Correct rotation in degrees
 
   useEffect(() => {
     initializeCamera();
@@ -24,13 +20,6 @@ const FaceCamera = ({ onCapture, onError, samplesRequired = 5 }) => {
 
   const initializeCamera = async () => {
     try {
-      // Load models first
-      setStatus('Loading face recognition models...');
-      await loadModels();
-      setModelsReady(true);
-      setStatus('Models loaded. Starting camera...');
-      
-      // Then start camera
       await startCamera();
     } catch (error) {
       console.error('Initialization error:', error);
@@ -49,11 +38,21 @@ const FaceCamera = ({ onCapture, onError, samplesRequired = 5 }) => {
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        
-        // Wait for video to be ready
+
+        // Wait for video to be ready and detect orientation
         await new Promise((resolve) => {
           if (videoRef.current) {
             videoRef.current.onloadedmetadata = () => {
+              const video = videoRef.current;
+              const w = video.videoWidth || 0;
+              const h = video.videoHeight || 0;
+              // Detect if device supplies rotated (portrait) video; correct for landscape display
+              let orient = 0;
+              if (w > 0 && h > 0 && h > w) {
+                // Portrait video in landscape container: rotate 90deg to display upright
+                orient = 90;
+              }
+              setVideoOrientation(orient);
               setIsStreaming(true);
               setStatus('Camera ready. Position your face in the frame with good lighting.');
               resolve();
@@ -86,40 +85,39 @@ const FaceCamera = ({ onCapture, onError, samplesRequired = 5 }) => {
     if (!videoRef.current || !isStreaming) return;
 
     try {
-      setStatus('Detecting face...');
-      const detection = await detectFace(videoRef.current);
-
-      if (!detection) {
-        setStatus('No face detected. Ensure: Good lighting, face clearly visible.');
-        setFaceDetected(false);
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!canvas || !video.videoWidth || !video.videoHeight) {
+        setStatus('Camera not ready. Please wait a moment.');
         return;
       }
 
-      setFaceDetected(true);
-      setStatus('Processing...');
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
 
-      // Skip liveness check for faster processing (optional - can re-enable if needed)
-      // const livenessResult = await checkLiveness(videoRef.current);
-      // if (!livenessResult.passed && samples.length === 0) {
-      //   setStatus(livenessResult.reason || 'Please blink or move your head slightly.');
-      //   return;
-      // }
+      ctx.save();
+      // Mirror for a natural front-camera experience
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -width, 0, width, height);
+      ctx.restore();
 
-      // Directly compute embedding (faster)
-      const embedding = await computeEmbedding(videoRef.current);
-      if (embedding) {
-        setSamples((prev) => {
-          const newSamples = [...prev, embedding];
-          if (newSamples.length >= samplesRequired) {
-            setStatus('Complete! Processing...');
-            setTimeout(() => {
-              onCapture?.(newSamples);
-            }, 200);
-          }
-          return newSamples;
-        });
-        setStatus(`✓ Sample ${samples.length + 1}/${samplesRequired} captured`);
-      }
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+      setSamples((prev) => {
+        const newSamples = [...prev, dataUrl];
+        if (newSamples.length >= samplesRequired) {
+          setStatus('Complete! Samples captured.');
+          setTimeout(() => {
+            onCapture?.(newSamples);
+          }, 200);
+        } else {
+          setStatus(`✓ Sample ${newSamples.length}/${samplesRequired} captured`);
+        }
+        return newSamples;
+      });
     } catch (error) {
       console.error('Capture error:', error);
       onError?.('Failed to capture face. Please try again.');
@@ -128,13 +126,23 @@ const FaceCamera = ({ onCapture, onError, samplesRequired = 5 }) => {
 
   return (
     <div className="space-y-4">
-      <div className="relative">
+      <div
+        className="camera-wrapper relative w-full overflow-hidden rounded-[10px] border-2 border-gray-300 bg-black"
+        style={{ aspectRatio: '16/9' }}
+      >
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className="w-full rounded-lg border-2 border-gray-300 scale-x-[-1]"
+          className="absolute inset-0 w-full h-full object-cover object-center"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transform: `rotate(${videoOrientation}deg)`,
+            transformOrigin: 'center center',
+          }}
         />
         <canvas ref={canvasRef} className="hidden" />
       </div>

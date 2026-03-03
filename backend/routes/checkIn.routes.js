@@ -6,16 +6,12 @@ const { apiLimiter } = require('../middleware/rateLimit');
 const {
   recordCheckIn,
   getCheckInHistory,
-  getDepartmentMemberEmbeddings,
-  enrollDepartmentMember,
 } = require('../controllers/checkInController');
 
 router.use(authenticate);
 router.use(apiLimiter);
 
-router.post('/enroll', authorize('admin', 'superadmin', 'lecturer'), enrollDepartmentMember);
-router.post('/record', authorize('superadmin', 'admin', 'lecturer'), recordCheckIn);
-router.get('/history', authorize('superadmin', 'admin', 'lecturer', 'viewer'), getCheckInHistory);
-router.get('/embeddings/:sectionId', authorize('superadmin', 'admin', 'lecturer'), getDepartmentMemberEmbeddings);
+router.post('/record', authorize('hr', 'admin', 'superadmin'), recordCheckIn);
+router.get('/history', authorize('hr', 'admin', 'superadmin'), getCheckInHistory);
 
 module.exports = router;

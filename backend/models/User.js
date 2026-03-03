@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['superadmin', 'admin', 'lecturer', 'viewer'],
+      enum: ['superadmin', 'admin', 'lecturer', 'hr'],
       default: 'lecturer',
     },
     status: {
@@ -102,6 +102,46 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Student',
       default: null,
+    },
+    guardianName: {
+      type: String,
+      trim: true,
+    },
+    guardianPhone: {
+      type: String,
+      trim: true,
+    },
+    sectionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Section',
+      default: null,
+    },
+    // Face recognition (photo-based) - optional until enrollment
+    faceImages: [
+      {
+        type: String, // URL path to stored face image
+        trim: true,
+      },
+    ],
+    defaultFaceImage: {
+      type: String, // Primary face image URL
+      trim: true,
+    },
+    faceCreatedAt: {
+      type: Date,
+    },
+    // Employee-specific fields
+    employeeId: { type: String, trim: true },
+    jobTitle: { type: String, trim: true },
+    emergencyContactName: { type: String, trim: true },
+    emergencyContactPhone: { type: String, trim: true },
+    joinDate: { type: Date },
+    shiftStart: { type: String, trim: true }, // HH:mm 24hr
+    shiftEnd: { type: String, trim: true }, // HH:mm 24hr
+    employmentStatus: {
+      type: String,
+      enum: ['active', 'on_leave', 'resigned', ''],
+      default: 'active',
     },
   },
   {

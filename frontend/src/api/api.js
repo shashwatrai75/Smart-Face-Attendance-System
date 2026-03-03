@@ -44,6 +44,10 @@ export const updateUserStatus = (id, status) => {
   return axiosClient.put(`/admin/user/${id}/status`, { status });
 };
 
+export const updateUser = (id, userData) => {
+  return axiosClient.put(`/admin/user/${id}`, userData);
+};
+
 export const deleteUser = (id) => {
   return axiosClient.delete(`/admin/user/${id}`);
 };
@@ -107,6 +111,22 @@ export const removeSectionMember = (sectionId, userId) => {
   return axiosClient.delete(`/sections/${sectionId}/members/${userId}`);
 };
 
+export const getClassSessionsBySection = (sectionId) => {
+  return axiosClient.get(`/sections/${sectionId}/class-sessions`);
+};
+
+export const createClassSession = (sectionId, data) => {
+  return axiosClient.post(`/sections/${sectionId}/class-sessions`, data);
+};
+
+export const updateClassSession = (id, data) => {
+  return axiosClient.put(`/class-sessions/${id}`, data);
+};
+
+export const deleteClassSession = (id) => {
+  return axiosClient.delete(`/class-sessions/${id}`);
+};
+
 // ============================================
 // CHECK-IN (Department sections)
 // ============================================
@@ -118,42 +138,6 @@ export const getCheckInHistory = (params) => {
   return axiosClient.get('/checkin/history', { params });
 };
 
-export const getDepartmentMemberEmbeddings = (sectionId) => {
-  return axiosClient.get(`/checkin/embeddings/${sectionId}`);
-};
-
-export const enrollDepartmentMember = (userId, sectionId, embeddingFloatArray, embeddingVersion = 1) => {
-  return axiosClient.post('/checkin/enroll', {
-    userId,
-    sectionId,
-    embeddingFloatArray,
-    embeddingVersion,
-  });
-};
-
-// ============================================
-// CLASS MANAGEMENT
-// ============================================
-export const createClass = (classData) => {
-  return axiosClient.post('/classes', classData);
-};
-
-export const getClasses = () => {
-  return axiosClient.get('/classes');
-};
-
-export const getClassesByLecturer = (lecturerId) => {
-  return axiosClient.get(`/classes/lecturer/${lecturerId}`);
-};
-
-export const updateClass = (id, classData) => {
-  return axiosClient.put(`/classes/${id}`, classData);
-};
-
-export const deleteClass = (id) => {
-  return axiosClient.delete(`/classes/${id}`);
-};
-
 // ============================================
 // STUDENT MANAGEMENT
 // ============================================
@@ -161,13 +145,13 @@ export const enrollStudent = (studentData) => {
   return axiosClient.post('/students/enroll', studentData);
 };
 
-export const getStudents = (classId) => {
-  const params = classId ? { classId } : {};
-  return axiosClient.get('/students', { params });
+export const enrollEmployee = (employeeData) => {
+  return axiosClient.post('/admin/enroll-employee', employeeData);
 };
 
-export const getStudentEmbeddings = (classId) => {
-  return axiosClient.get(`/students/embeddings/${classId}`);
+export const getStudents = (sectionId) => {
+  const params = sectionId ? { sectionId } : {};
+  return axiosClient.get('/students', { params });
 };
 
 export const deleteStudentData = (id) => {
@@ -177,18 +161,20 @@ export const deleteStudentData = (id) => {
 // ============================================
 // ATTENDANCE
 // ============================================
-export const startSession = (classId) => {
-  return axiosClient.post('/attendance/start-session', { classId });
+export const startSession = (payload) => {
+  return axiosClient.post('/attendance/start-session', payload);
 };
 
-export const markAttendance = async (sessionId, classId, recognizedStudents) => {
+export const markAttendance = async (payload) => {
+  const { sessionId, sectionId, classSessionId, recognizedStudents } = payload;
   const studentsArray = Array.isArray(recognizedStudents)
     ? recognizedStudents
     : [recognizedStudents];
 
   return axiosClient.post('/attendance/mark', {
     sessionId,
-    classId,
+    sectionId,
+    classSessionId,
     recognizedStudents: studentsArray,
   });
 };
@@ -222,6 +208,19 @@ export const getCalendarAttendance = (params) => {
 };
 
 // ============================================
+// FACE ENROLLMENT & VERIFICATION
+// ============================================
+export const enrollFace = (payload) => {
+  // payload: { targetType: 'student' | 'user', targetId, imageBase64 }
+  return axiosClient.post('/face/enroll', payload);
+};
+
+export const verifyFace = (payload) => {
+  // payload: { imageBase64, sectionId }
+  return axiosClient.post('/face/verify', payload);
+};
+
+// ============================================
 // REPORTS
 // ============================================
 export const getSummary = (params) => {
@@ -236,8 +235,42 @@ export const getTrendData = (params) => {
   return axiosClient.get('/reports/trend', { params });
 };
 
-export const exportReport = async (classId, dateFrom, dateTo, format = 'xlsx') => {
-  const params = { classId, format };
+// ============================================
+// SUPERADMIN (Superadmin only)
+// ============================================
+export const getSystemSettings = () => {
+  return axiosClient.get('/superadmin/settings');
+};
+
+export const updateSystemSettings = (settings) => {
+  return axiosClient.put('/superadmin/settings', { settings });
+};
+
+export const getAuditLogs = (params) => {
+  return axiosClient.get('/superadmin/audit-logs', { params });
+};
+
+export const getAdminUsers = () => {
+  return axiosClient.get('/superadmin/admins');
+};
+
+export const purgeAttendance = (params) => {
+  return axiosClient.post('/superadmin/purge-attendance', params);
+};
+
+export const purgeData = (type) => {
+  return axiosClient.post('/superadmin/purge-data', { type });
+};
+
+export const deleteSectionSuperadmin = (id) => {
+  return axiosClient.delete(`/superadmin/sections/${id}`);
+};
+
+// ============================================
+// REPORTS
+// ============================================
+export const exportReport = async (sectionId, dateFrom, dateTo, format = 'xlsx') => {
+  const params = { sectionId, format };
   if (dateFrom) params.dateFrom = dateFrom;
   if (dateTo) params.dateTo = dateTo;
 
@@ -255,7 +288,7 @@ export const exportReport = async (classId, dateFrom, dateTo, format = 'xlsx') =
   const link = document.createElement('a');
   link.href = url;
   const extension = format === 'csv' ? 'csv' : 'xlsx';
-  link.setAttribute('download', `attendance-${classId}-${dateFrom || 'all'}-${dateTo || 'all'}.${extension}`);
+  link.setAttribute('download', `attendance-${sectionId}-${dateFrom || 'all'}-${dateTo || 'all'}.${extension}`);
   document.body.appendChild(link);
   link.click();
   link.remove();

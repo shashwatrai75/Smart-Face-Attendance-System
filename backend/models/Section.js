@@ -15,12 +15,6 @@ const sectionSchema = new mongoose.Schema(
       enum: ['class', 'department'],
       required: [true, 'Section type is required'],
     },
-    classId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Class',
-      default: null,
-    },
-    // Class section: duration and class time window
     startDate: {
       type: String,
       trim: true,
@@ -31,23 +25,12 @@ const sectionSchema = new mongoose.Schema(
       trim: true,
       match: [dateRegex, 'Date must be YYYY-MM-DD'],
     },
-    classStartTime: {
+    startTime: {
       type: String,
       trim: true,
       match: [timeRegex, 'Time must be HH:mm'],
     },
-    classEndTime: {
-      type: String,
-      trim: true,
-      match: [timeRegex, 'Time must be HH:mm'],
-    },
-    // Department section: shift window
-    shiftStartTime: {
-      type: String,
-      trim: true,
-      match: [timeRegex, 'Time must be HH:mm'],
-    },
-    shiftEndTime: {
+    endTime: {
       type: String,
       trim: true,
       match: [timeRegex, 'Time must be HH:mm'],
@@ -63,6 +46,5 @@ const sectionSchema = new mongoose.Schema(
 );
 
 sectionSchema.index({ sectionType: 1 });
-sectionSchema.index({ classId: 1 });
 
 module.exports = mongoose.model('Section', sectionSchema);

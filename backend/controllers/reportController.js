@@ -1,6 +1,7 @@
 const Attendance = require('../models/Attendance');
 const AttendanceSession = require('../models/AttendanceSession');
-const Class = require('../models/Class');
+const ClassSession = require('../models/ClassSession');
+const Section = require('../models/Section');
 const Student = require('../models/Student');
 const { exportAttendance } = require('../utils/excelExport');
 const logger = require('../utils/logger');
@@ -8,26 +9,27 @@ const logger = require('../utils/logger');
 const exportReport = async (req, res, next) => {
   try {
     const user = req.user;
-    const { classId, dateFrom, dateTo, format = 'xlsx' } = req.query;
+    const { sectionId, dateFrom, dateTo, format = 'xlsx' } = req.query;
 
-    if (user.role === 'viewer') {
-      return res.status(403).json({ error: 'Access denied. Export is not available for your role.' });
+    if (!sectionId) {
+      return res.status(400).json({ error: 'Section ID is required' });
     }
 
-    if (!classId) {
-      return res.status(400).json({ error: 'Class ID is required' });
+    const section = await Section.findById(sectionId);
+    if (!section) {
+      return res.status(404).json({ error: 'Section not found' });
     }
 
-    const classDoc = await Class.findById(classId);
-    if (!classDoc) {
-      return res.status(404).json({ error: 'Class not found' });
+    if (user.role === 'lecturer') {
+      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
+      const sectionIds = taughtSessions.map((s) => s.sectionId && s.sectionId.toString());
+      if (user.sectionId) sectionIds.push(user.sectionId.toString());
+      if (!sectionIds.includes(sectionId)) {
+        return res.status(403).json({ error: 'Access denied to this section' });
+      }
     }
 
-    if (user.role === 'lecturer' && classDoc.lecturerId.toString() !== user._id.toString()) {
-      return res.status(403).json({ error: 'Access denied to this class' });
-    }
-
-    let query = { classId };
+    let query = { sectionId };
 
     if (dateFrom || dateTo) {
       query.date = {};
@@ -37,7 +39,7 @@ const exportReport = async (req, res, next) => {
 
     const attendance = await Attendance.find(query)
       .populate('studentId', 'fullName rollNo')
-      .populate('classId', 'className')
+      .populate('sectionId', 'sectionName sectionType')
       .populate('lecturerId', 'name')
       .sort({ date: -1, time: -1 });
 
@@ -45,20 +47,19 @@ const exportReport = async (req, res, next) => {
       return res.status(404).json({ error: 'No attendance records found' });
     }
 
-    // Format data for export
     const exportData = attendance.map((record) => ({
       date: record.date,
       time: record.time,
-      studentName: record.studentId.fullName,
-      rollNo: record.studentId.rollNo,
-      className: record.classId.className,
+      studentName: record.studentId?.fullName || '',
+      rollNo: record.studentId?.rollNo || '',
+      sectionName: record.sectionId?.sectionName || '',
       status: record.status,
-      lecturerName: record.lecturerId.name,
+      lecturerName: record.lecturerId?.name || '',
     }));
 
     const buffer = await exportAttendance(exportData, format);
 
-    const filename = `attendance-${classId}-${dateFrom || 'all'}-${dateTo || 'all'}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+    const filename = `attendance-${sectionId}-${dateFrom || 'all'}-${dateTo || 'all'}.${format === 'csv' ? 'csv' : 'xlsx'}`;
     const contentType = format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
     res.setHeader('Content-Type', contentType);
@@ -70,51 +71,49 @@ const exportReport = async (req, res, next) => {
   }
 };
 
-// Get overall summary statistics
 const getSummary = async (req, res, next) => {
   try {
     const user = req.user;
     const { startDate, endDate } = req.query;
 
-    let classQuery = {};
+    let sectionQuery = {};
     let attendanceQuery = {};
     let sessionQuery = { status: 'completed' };
 
-    // Role-based visibility
     if (user.role === 'superadmin' || user.role === 'admin') {
-      // All data - no extra filters
+      // no extra filters
+    } else if (user.role === 'hr') {
+      // HR: reports are class-attendance based; return empty summary (check-in data is in History)
+      return res.json({
+        success: true,
+        summary: { totalSections: 0, totalStudents: 0, averageAttendance: 0, totalSessions: 0 },
+      });
     } else if (user.role === 'lecturer') {
-      const lecturerClasses = await Class.find({ lecturerId: user._id }).select('_id');
-      const classIds = lecturerClasses.map((c) => c._id);
-      classQuery._id = { $in: classIds };
-      attendanceQuery.classId = { $in: classIds };
-      sessionQuery.classId = { $in: classIds };
-      sessionQuery.lecturerId = user._id;
-    } else if (user.role === 'viewer') {
-      // Viewer: only their own attendance - minimal summary
-      const linkedStudentId = user.linkedStudentId;
-      if (!linkedStudentId) {
+      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
+      const sectionIds = taughtSessions.map((s) => s.sectionId);
+      if (user.sectionId) sectionIds.push(user.sectionId);
+      if (sectionIds.length === 0) {
         return res.json({
           success: true,
           summary: {
-            totalClasses: 0,
+            totalSections: 0,
             totalStudents: 0,
             averageAttendance: 0,
             totalSessions: 0,
           },
         });
       }
-      attendanceQuery.studentId = linkedStudentId;
-      classQuery = { _id: { $in: [] } };
-      sessionQuery = { sessionId: '__viewer_no_sessions__' }; // Ensures 0 sessions for viewer
+      sectionQuery._id = { $in: sectionIds };
+      attendanceQuery.sectionId = { $in: sectionIds };
+      sessionQuery.sectionId = { $in: sectionIds };
+      sessionQuery.lecturerId = user._id;
     } else {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Date filters
     if (startDate || endDate) {
-      attendanceQuery.date = {};
-      sessionQuery.date = {};
+      attendanceQuery.date = attendanceQuery.date || {};
+      sessionQuery.date = sessionQuery.date || {};
       if (startDate) {
         attendanceQuery.date.$gte = startDate;
         sessionQuery.date.$gte = startDate;
@@ -125,36 +124,27 @@ const getSummary = async (req, res, next) => {
       }
     }
 
-    // Get total classes
-    const totalClasses = await Class.countDocuments(classQuery);
+    const totalSections = await Section.countDocuments(sectionQuery);
 
-    // Get total students
     let totalStudents = 0;
     if (user.role === 'lecturer') {
-      const lecturerClasses = await Class.find({ lecturerId: user._id }).select('_id');
-      const classIds = lecturerClasses.map((c) => c._id);
-      totalStudents = await Student.countDocuments({ classId: { $in: classIds } });
-    } else if (user.role === 'viewer') {
-      totalStudents = user.linkedStudentId ? 1 : 0;
+      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
+      const sectionIds = taughtSessions.map((s) => s.sectionId);
+      if (user.sectionId) sectionIds.push(user.sectionId);
+      totalStudents = await Student.countDocuments({ sectionId: { $in: sectionIds } });
     } else {
       totalStudents = await Student.countDocuments();
     }
 
-    // Get total sessions
     const totalSessions = await AttendanceSession.countDocuments(sessionQuery);
 
-    // Calculate average attendance percentage
     const attendanceStats = await Attendance.aggregate([
       { $match: attendanceQuery },
       {
         $group: {
           _id: null,
           totalRecords: { $sum: 1 },
-          presentCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'present'] }, 1, 0],
-            },
-          },
+          presentCount: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } },
         },
       },
     ]);
@@ -166,7 +156,7 @@ const getSummary = async (req, res, next) => {
     res.json({
       success: true,
       summary: {
-        totalClasses,
+        totalSections,
         totalStudents,
         averageAttendance: parseFloat(averageAttendance),
         totalSessions,
@@ -178,89 +168,69 @@ const getSummary = async (req, res, next) => {
   }
 };
 
-// Get class-wise attendance data
 const getClassWiseData = async (req, res, next) => {
   try {
     const user = req.user;
     const { startDate, endDate } = req.query;
 
-    let classQuery = {};
+    let sectionQuery = {};
     let attendanceQuery = {};
 
     if (user.role === 'superadmin' || user.role === 'admin') {
-      // All classes
-    } else if (user.role === 'lecturer') {
-      const lecturerClasses = await Class.find({ lecturerId: user._id }).select('_id');
-      const classIds = lecturerClasses.map((c) => c._id);
-      classQuery._id = { $in: classIds };
-      attendanceQuery.classId = { $in: classIds };
-    } else if (user.role === 'viewer') {
-      // Viewer: no class-wise data (they see only their own)
+      sectionQuery = { sectionType: 'class' };
+    } else if (user.role === 'hr') {
       return res.json({ success: true, classWiseData: [] });
+    } else if (user.role === 'lecturer') {
+      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
+      const sectionIds = taughtSessions.map((s) => s.sectionId);
+      if (user.sectionId) sectionIds.push(user.sectionId);
+      if (sectionIds.length === 0) {
+        return res.json({ success: true, classWiseData: [] });
+      }
+      sectionQuery = { _id: { $in: sectionIds }, sectionType: 'class' };
+      attendanceQuery.sectionId = { $in: sectionIds };
     } else {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Date filters
     if (startDate || endDate) {
       attendanceQuery.date = {};
       if (startDate) attendanceQuery.date.$gte = startDate;
       if (endDate) attendanceQuery.date.$lte = endDate;
     }
 
-    // Get all classes
-    const classes = await Class.find(classQuery).select('_id className subject');
+    const sections = await Section.find(sectionQuery).select('_id sectionName sectionType');
 
-    // Get attendance stats per class
-    const classStats = await Attendance.aggregate([
+    const sectionStats = await Attendance.aggregate([
       { $match: attendanceQuery },
       {
         $group: {
-          _id: '$classId',
+          _id: '$sectionId',
           totalRecords: { $sum: 1 },
-          presentCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'present'] }, 1, 0],
-            },
-          },
-          absentCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'absent'] }, 1, 0],
-            },
-          },
-          lateCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'late'] }, 1, 0],
-            },
-          },
+          presentCount: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } },
+          absentCount: { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } },
+          lateCount: { $sum: { $cond: [{ $eq: ['$status', 'late'] }, 1, 0] } },
         },
       },
     ]);
 
-    // Create a map of class stats
     const statsMap = new Map();
-    classStats.forEach((stat) => {
-      statsMap.set(stat._id.toString(), stat);
-    });
+    sectionStats.forEach((stat) => statsMap.set(stat._id?.toString(), stat));
 
-    // Combine class info with stats
-    const classWiseData = classes.map((classDoc) => {
-      const stats = statsMap.get(classDoc._id.toString()) || {
+    const classWiseData = sections.map((sec) => {
+      const stats = statsMap.get(sec._id.toString()) || {
         totalRecords: 0,
         presentCount: 0,
         absentCount: 0,
         lateCount: 0,
       };
-
       const attendancePercentage =
-        stats.totalRecords > 0
-          ? ((stats.presentCount / stats.totalRecords) * 100).toFixed(2)
-          : 0;
+        stats.totalRecords > 0 ? ((stats.presentCount / stats.totalRecords) * 100).toFixed(2) : 0;
 
       return {
-        classId: classDoc._id,
-        className: classDoc.className,
-        subject: classDoc.subject,
+        sectionId: sec._id,
+        sectionName: sec.sectionName,
+        sectionType: sec.sectionType,
         totalRecords: stats.totalRecords,
         presentCount: stats.presentCount,
         absentCount: stats.absentCount,
@@ -279,7 +249,6 @@ const getClassWiseData = async (req, res, next) => {
   }
 };
 
-// Get attendance trend over time
 const getTrendData = async (req, res, next) => {
   try {
     const user = req.user;
@@ -288,55 +257,40 @@ const getTrendData = async (req, res, next) => {
     let attendanceQuery = {};
 
     if (user.role === 'superadmin' || user.role === 'admin') {
-      // All attendance
+      // all attendance
+    } else if (user.role === 'hr') {
+      return res.json({ success: true, trendData: [] });
     } else if (user.role === 'lecturer') {
-      const lecturerClasses = await Class.find({ lecturerId: user._id }).select('_id');
-      const classIds = lecturerClasses.map((c) => c._id);
-      attendanceQuery.classId = { $in: classIds };
-    } else if (user.role === 'viewer') {
-      const linkedStudentId = user.linkedStudentId;
-      if (!linkedStudentId) {
-        return res.json({ success: true, trendData: [] });
-      }
-      attendanceQuery.studentId = linkedStudentId;
+      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
+      const sectionIds = taughtSessions.map((s) => s.sectionId);
+      if (user.sectionId) sectionIds.push(user.sectionId);
+      attendanceQuery.sectionId = { $in: sectionIds };
     } else {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Date filters
     if (startDate || endDate) {
       attendanceQuery.date = {};
       if (startDate) attendanceQuery.date.$gte = startDate;
       if (endDate) attendanceQuery.date.$lte = endDate;
     }
 
-    // Get attendance stats grouped by date
     const trendData = await Attendance.aggregate([
       { $match: attendanceQuery },
       {
         $group: {
           _id: '$date',
           totalRecords: { $sum: 1 },
-          presentCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'present'] }, 1, 0],
-            },
-          },
-          absentCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'absent'] }, 1, 0],
-            },
-          },
+          presentCount: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } },
+          absentCount: { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } },
         },
       },
       { $sort: { _id: 1 } },
     ]);
 
-    // Format data for chart
     const formattedTrend = trendData.map((item) => {
       const attendancePercentage =
         item.totalRecords > 0 ? ((item.presentCount / item.totalRecords) * 100).toFixed(2) : 0;
-
       return {
         date: item._id,
         total: item.totalRecords,
@@ -362,4 +316,3 @@ module.exports = {
   getClassWiseData,
   getTrendData,
 };
-

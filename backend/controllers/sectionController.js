@@ -1,54 +1,34 @@
 const Section = require('../models/Section');
 const SectionMember = require('../models/SectionMember');
-const Class = require('../models/Class');
 const { timeToMinutes, todayDate, compareDates } = require('../utils/timeHelpers');
 
 const createSection = async (req, res, next) => {
   try {
-    const {
-      sectionName,
-      sectionType,
-      classId,
-      startDate,
-      endDate,
-      classStartTime,
-      classEndTime,
-      shiftStartTime,
-      shiftEndTime,
-      description,
-    } = req.body;
+    const { sectionName, sectionType, startDate, endDate, startTime, endTime, description } = req.body;
 
     if (!sectionName || !sectionType) {
       return res.status(400).json({ error: 'Section name and type are required' });
     }
 
     if (sectionType === 'class') {
-      if (!classId) {
-        return res.status(400).json({ error: 'Class ID is required for class sections' });
-      }
-      const classDoc = await Class.findById(classId);
-      if (!classDoc) {
-        return res.status(404).json({ error: 'Class not found' });
-      }
       if (startDate && endDate && compareDates(startDate, endDate) >= 0) {
         return res.status(400).json({ error: 'Start date must be before end date' });
       }
-      if (!classStartTime || !classEndTime) {
-        return res.status(400).json({ error: 'Class start time and end time are required' });
-      }
-      const startM = timeToMinutes(classStartTime);
-      const endM = timeToMinutes(classEndTime);
-      if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
-        return res.status(400).json({ error: 'Class start time must be before class end time' });
+      if (startTime && endTime) {
+        const startM = timeToMinutes(startTime);
+        const endM = timeToMinutes(endTime);
+        if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
+          return res.status(400).json({ error: 'End time must be after start time' });
+        }
       }
     }
 
     if (sectionType === 'department') {
-      if (shiftStartTime && shiftEndTime) {
-        const startM = timeToMinutes(shiftStartTime);
-        const endM = timeToMinutes(shiftEndTime);
+      if (startTime && endTime) {
+        const startM = timeToMinutes(startTime);
+        const endM = timeToMinutes(endTime);
         if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
-          return res.status(400).json({ error: 'Shift start time must be before shift end time' });
+          return res.status(400).json({ error: 'End time must be after start time' });
         }
       }
     }
@@ -56,17 +36,12 @@ const createSection = async (req, res, next) => {
     const section = await Section.create({
       sectionName,
       sectionType,
-      classId: sectionType === 'class' ? classId : null,
       startDate: startDate || undefined,
-      endDate: sectionType === 'class' ? (endDate || undefined) : undefined,
-      classStartTime: sectionType === 'class' ? classStartTime : undefined,
-      classEndTime: sectionType === 'class' ? classEndTime : undefined,
-      shiftStartTime: sectionType === 'department' ? shiftStartTime : undefined,
-      shiftEndTime: sectionType === 'department' ? shiftEndTime : undefined,
+      endDate: endDate || undefined,
+      startTime: startTime || undefined,
+      endTime: endTime || undefined,
       description: description || undefined,
     });
-
-    await section.populate('classId', 'className subject lecturerId');
 
     res.status(201).json({
       success: true,
@@ -83,17 +58,21 @@ const getSections = async (req, res, next) => {
     let query = {};
 
     if (user.role === 'lecturer') {
-      const assignedClasses = await Class.find({ lecturerId: user._id }).select('_id');
-      const classIds = assignedClasses.map((c) => c._id);
-      query.$or = [
-        { sectionType: 'department' },
-        { classId: { $in: classIds } },
-      ];
+      query.sectionType = 'class';
+    } else if (user.role === 'hr') {
+      query.sectionType = 'department';
+      if (user.sectionId) {
+        query._id = user.sectionId;
+      }
     }
+    // admin and superadmin: no filter, see both class and department
 
-    const sections = await Section.find(query)
-      .populate('classId', 'className subject lecturerId')
-      .sort({ createdAt: -1 });
+    let sections;
+    if (user.role === 'hr' && !user.sectionId) {
+      sections = [];
+    } else {
+      sections = await Section.find(query).sort({ createdAt: -1 });
+    }
 
     res.json({
       success: true,
@@ -107,10 +86,24 @@ const getSections = async (req, res, next) => {
 const getSectionById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const section = await Section.findById(id).populate('classId', 'className subject lecturerId');
+    const section = await Section.findById(id);
 
     if (!section) {
       return res.status(404).json({ error: 'Section not found' });
+    }
+
+    // Lecturers may only access class sections
+    if (req.user.role === 'lecturer' && section.sectionType === 'department') {
+      return res.status(403).json({ error: 'Access denied. Lecturers can only access class sections.' });
+    }
+
+    // HR may only access their assigned department section
+    if (req.user.role === 'hr' && req.user.sectionId && section.sectionType === 'department') {
+      const allowedId = req.user.sectionId.toString();
+      const sectionIdStr = section._id.toString();
+      if (sectionIdStr !== allowedId) {
+        return res.status(403).json({ error: 'Access denied. You can only access your assigned department.' });
+      }
     }
 
     let result = section.toObject ? section.toObject() : section;
@@ -130,18 +123,7 @@ const getSectionById = async (req, res, next) => {
 const updateSection = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const {
-      sectionName,
-      sectionType,
-      classId,
-      startDate,
-      endDate,
-      classStartTime,
-      classEndTime,
-      shiftStartTime,
-      shiftEndTime,
-      description,
-    } = req.body;
+    const { sectionName, sectionType, startDate, endDate, startTime, endTime, description } = req.body;
 
     const section = await Section.findById(id);
     if (!section) {
@@ -150,24 +132,15 @@ const updateSection = async (req, res, next) => {
 
     const type = sectionType !== undefined ? sectionType : section.sectionType;
 
-    if (type === 'class') {
-      if (startDate !== undefined && endDate !== undefined && compareDates(startDate, endDate) >= 0) {
-        return res.status(400).json({ error: 'Start date must be before end date' });
-      }
-      if (classStartTime !== undefined && classEndTime !== undefined) {
-        const startM = timeToMinutes(classStartTime);
-        const endM = timeToMinutes(classEndTime);
-        if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
-          return res.status(400).json({ error: 'Class start time must be before class end time' });
-        }
-      }
+    if (type === 'class' && startDate !== undefined && endDate !== undefined && compareDates(startDate, endDate) >= 0) {
+      return res.status(400).json({ error: 'Start date must be before end date' });
     }
 
-    if (type === 'department' && shiftStartTime !== undefined && shiftEndTime !== undefined) {
-      const startM = timeToMinutes(shiftStartTime);
-      const endM = timeToMinutes(shiftEndTime);
+    if ((type === 'class' || type === 'department') && startTime !== undefined && endTime !== undefined) {
+      const startM = timeToMinutes(startTime);
+      const endM = timeToMinutes(endTime);
       if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
-        return res.status(400).json({ error: 'Shift start time must be before shift end time' });
+        return res.status(400).json({ error: 'End time must be after start time' });
       }
     }
 
@@ -176,29 +149,14 @@ const updateSection = async (req, res, next) => {
     if (sectionType !== undefined) updates.sectionType = sectionType;
     if (startDate !== undefined) updates.startDate = startDate;
     if (endDate !== undefined) updates.endDate = endDate;
-    if (classStartTime !== undefined) updates.classStartTime = classStartTime;
-    if (classEndTime !== undefined) updates.classEndTime = classEndTime;
-    if (shiftStartTime !== undefined) updates.shiftStartTime = shiftStartTime;
-    if (shiftEndTime !== undefined) updates.shiftEndTime = shiftEndTime;
+    if (startTime !== undefined) updates.startTime = startTime;
+    if (endTime !== undefined) updates.endTime = endTime;
     if (description !== undefined) updates.description = description;
-
-    if (type === 'class' && classId !== undefined) {
-      updates.classId = classId;
-      const classDoc = await Class.findById(classId);
-      if (!classDoc) {
-        return res.status(404).json({ error: 'Class not found' });
-      }
-    } else if (type === 'department') {
-      updates.classId = null;
-      updates.endDate = null;
-      updates.classStartTime = null;
-      updates.classEndTime = null;
-    }
 
     const updatedSection = await Section.findByIdAndUpdate(id, updates, {
       new: true,
       runValidators: true,
-    }).populate('classId', 'className subject lecturerId');
+    });
 
     res.json({
       success: true,

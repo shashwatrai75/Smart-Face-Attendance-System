@@ -1,14 +1,23 @@
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
+const Section = require('../models/Section');
 const logger = require('../utils/logger');
 
-// Get current user profile
+// Get current user profile (includes assigned department for HR)
 const getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select('-passwordHash -failedLoginAttempts -lockUntil');
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    let department = null;
+    if (user.sectionId) {
+      const section = await Section.findById(user.sectionId).select('sectionName sectionType').lean();
+      if (section) {
+        department = { id: section._id, name: section.sectionName, sectionType: section.sectionType };
+      }
     }
 
     res.json({
@@ -22,6 +31,10 @@ const getProfile = async (req, res, next) => {
         status: user.status,
         createdAt: user.createdAt,
         linkedStudentId: user.linkedStudentId || null,
+        guardianName: user.guardianName || null,
+        guardianPhone: user.guardianPhone || null,
+        sectionId: user.sectionId || null,
+        department: department || null,
       },
     });
   } catch (error) {

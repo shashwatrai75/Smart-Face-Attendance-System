@@ -21,7 +21,7 @@ const AdminDashboard = () => {
       setStats(response.stats || {
         totalUsers: 0,
         activeLecturers: 0,
-        totalClasses: 0,
+        totalSections: 0,
         totalStudents: 0,
         totalAttendance: 0,
         todayAttendance: 0,
@@ -36,7 +36,7 @@ const AdminDashboard = () => {
   const statCards = [
     { label: 'Total Users', value: stats?.totalUsers || 0, color: 'from-blue-500 to-blue-600', icon: '👥' },
     { label: 'Active Lecturers', value: stats?.activeLecturers || 0, color: 'from-green-500 to-green-600', icon: '👨‍🏫' },
-    { label: 'Total Classes', value: stats?.totalClasses || 0, color: 'from-purple-500 to-purple-600', icon: '📚' },
+    { label: 'Total Sections', value: stats?.totalSections || 0, color: 'from-purple-500 to-purple-600', icon: '📚' },
     { label: 'Total Students', value: stats?.totalStudents || 0, color: 'from-indigo-500 to-indigo-600', icon: '🎓' },
     { label: 'Total Attendance', value: stats?.totalAttendance || 0, color: 'from-orange-500 to-orange-600', icon: '✅' },
     { label: "Today's Attendance", value: stats?.todayAttendance || 0, color: 'from-red-500 to-red-600', icon: '📊' },

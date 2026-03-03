@@ -7,5 +7,9 @@ db.version(1).stores({
   pendingEnrollments: '++id, fullName, rollNo, classId, embedding, synced',
 });
 
-export default db;
+db.version(2).stores({
+  pendingAttendance: '++id, sessionId, sectionId, studentId, status, time, capturedOffline, synced',
+  pendingEnrollments: '++id, fullName, rollNo, sectionId, embedding, synced',
+});
 
+export default db;

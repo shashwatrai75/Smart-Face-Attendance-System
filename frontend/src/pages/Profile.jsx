@@ -9,7 +9,7 @@ import Toast from '../components/Toast';
 import { validatePassword } from '../utils/validators';
 
 const Profile = () => {
-  const { user: authUser, logout } = useAuth();
+  const { user: authUser, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,6 +32,12 @@ const Profile = () => {
     try {
       const response = await getProfile();
       setProfile(response.user);
+      if (response.user && (response.user.sectionId !== undefined || response.user.department !== undefined)) {
+        updateUser({
+          sectionId: response.user.sectionId ?? authUser?.sectionId,
+          department: response.user.department ?? authUser?.department,
+        });
+      }
     } catch (err) {
       console.error('Failed to load profile:', err);
       setToast({ message: err?.error || 'Failed to load profile', type: 'error' });
@@ -128,7 +134,8 @@ const Profile = () => {
     const colors = {
       admin: 'bg-purple-100 text-purple-800',
       lecturer: 'bg-blue-100 text-blue-800',
-      viewer: 'bg-gray-100 text-gray-800',
+      hr: 'bg-indigo-100 text-indigo-800',
+      superadmin: 'bg-pink-100 text-pink-800',
     };
     return colors[role] || 'bg-gray-100 text-gray-800';
   };
@@ -235,6 +242,24 @@ const Profile = () => {
                     Active
                   </span>
                 </div>
+                {displayUser?.guardianName && (
+                  <div>
+                    <p className="text-sm text-gray-600">Guardian Name</p>
+                    <p className="text-gray-900 font-medium">{displayUser.guardianName}</p>
+                  </div>
+                )}
+                {displayUser?.guardianPhone && (
+                  <div>
+                    <p className="text-sm text-gray-600">Guardian Phone</p>
+                    <p className="text-gray-900 font-medium">{displayUser.guardianPhone}</p>
+                  </div>
+                )}
+                {displayUser?.department?.name && (
+                  <div>
+                    <p className="text-sm text-gray-600">Department</p>
+                    <p className="text-gray-900 dark:text-gray-100 font-medium">{displayUser.department.name}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

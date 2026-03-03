@@ -1,8 +1,9 @@
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const Attendance = require('../models/Attendance');
-const Class = require('../models/Class');
+const Section = require('../models/Section');
 const Student = require('../models/Student');
+const SectionMember = require('../models/SectionMember');
 const logger = require('../utils/logger');
 
 const createUser = async (req, res, next) => {
@@ -23,11 +24,14 @@ const createUser = async (req, res, next) => {
       institutionName,
       image,
       linkedStudentId,
+      sectionId,
+      guardianName,
+      guardianPhone,
     } = req.body;
 
-    // Role restrictions: Only superadmin can create admins or superadmins
-    if (role && (role === 'admin' || role === 'superadmin') && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Only Superadmins can create Admin or Superadmin users' });
+    // Role restrictions: Only superadmin can create admins, superadmins, or HR
+    if (role && (role === 'admin' || role === 'superadmin' || role === 'hr') && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only Superadmins can create Admin, Superadmin, or HR users' });
     }
 
     const userData = {
@@ -47,9 +51,14 @@ const createUser = async (req, res, next) => {
       image,
       status: 'active',
     };
-    if (linkedStudentId && role === 'viewer') {
+    if (linkedStudentId) {
       userData.linkedStudentId = linkedStudentId;
     }
+    if (sectionId) {
+      userData.sectionId = sectionId;
+    }
+    if (guardianName !== undefined) userData.guardianName = guardianName || '';
+    if (guardianPhone !== undefined) userData.guardianPhone = guardianPhone || '';
     const user = await User.create(userData);
 
     await AuditLog.create({
@@ -79,7 +88,12 @@ const createUser = async (req, res, next) => {
 
 const getUsers = async (req, res, next) => {
   try {
-    const users = await User.find().select('-passwordHash').sort({ createdAt: -1 });
+    let users = await User.find().select('-passwordHash').sort({ createdAt: -1 });
+
+    // Admin: exclude admin and superadmin; Superadmin: no filtering
+    if (req.user.role === 'admin') {
+      users = users.filter((u) => u.role !== 'admin' && u.role !== 'superadmin');
+    }
 
     res.json({
       success: true,
@@ -130,6 +144,90 @@ const updateUserStatus = async (req, res, next) => {
   }
 };
 
+const updateUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      zipCode,
+      country,
+      dateOfBirth,
+      gender,
+      role,
+      institutionName,
+      status,
+      guardianName,
+      guardianPhone,
+    } = req.body;
+
+    const userToUpdate = await User.findById(id);
+    if (!userToUpdate) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Role restrictions: Admins cannot modify admin or superadmin accounts
+    if ((userToUpdate.role === 'admin' || userToUpdate.role === 'superadmin') && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Access denied. You cannot modify Admin or Superadmin accounts.' });
+    }
+
+    // Only superadmin can change admin/superadmin roles
+    if (role && (role === 'admin' || role === 'superadmin') && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only Superadmins can assign Admin or Superadmin roles' });
+    }
+
+    // Check email uniqueness if changing
+    if (email && email.toLowerCase() !== userToUpdate.email) {
+      const existing = await User.findOne({ email: email.toLowerCase() });
+      if (existing) {
+        return res.status(400).json({ error: 'Email already exists' });
+      }
+    }
+
+    const updateFields = {};
+    if (name !== undefined) updateFields.name = name;
+    if (email !== undefined) updateFields.email = email.toLowerCase();
+    if (phone !== undefined) updateFields.phone = phone;
+    if (address !== undefined) updateFields.address = address;
+    if (city !== undefined) updateFields.city = city;
+    if (state !== undefined) updateFields.state = state;
+    if (zipCode !== undefined) updateFields.zipCode = zipCode;
+    if (country !== undefined) updateFields.country = country;
+    if (dateOfBirth !== undefined) updateFields.dateOfBirth = dateOfBirth || undefined;
+    if (gender !== undefined) updateFields.gender = gender || '';
+    if (role !== undefined) updateFields.role = role;
+    if (institutionName !== undefined) updateFields.institutionName = institutionName;
+    if (status !== undefined && ['active', 'disabled'].includes(status)) updateFields.status = status;
+    if (guardianName !== undefined) updateFields.guardianName = guardianName || '';
+    if (guardianPhone !== undefined) updateFields.guardianPhone = guardianPhone || '';
+
+    const user = await User.findByIdAndUpdate(id, updateFields, {
+      new: true,
+      runValidators: true,
+    }).select('-passwordHash');
+
+    await AuditLog.create({
+      actorUserId: req.user._id,
+      action: 'UPDATE_USER',
+      metadata: { userId: id, updatedFields: Object.keys(updateFields) },
+    });
+
+    res.json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+    next(error);
+  }
+};
+
 const deleteUser = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -168,7 +266,7 @@ const deleteUser = async (req, res, next) => {
 const getStats = async (req, res, next) => {
   try {
     const totalUsers = await User.countDocuments();
-    const totalClasses = await Class.countDocuments();
+    const totalSections = await Section.countDocuments();
     const totalStudents = await Student.countDocuments();
     const totalAttendance = await Attendance.countDocuments();
 
@@ -191,7 +289,7 @@ const getStats = async (req, res, next) => {
       stats: {
         totalUsers,
         activeLecturers,
-        totalClasses,
+        totalSections,
         totalStudents,
         totalAttendance,
         todayAttendance,
@@ -313,6 +411,103 @@ const getUserActivity = async (req, res, next) => {
   }
 };
 
+const enrollEmployee = async (req, res, next) => {
+  try {
+    const {
+      fullName,
+      employeeId,
+      email,
+      phone,
+      dateOfBirth,
+      gender,
+      jobTitle,
+      address,
+      emergencyContactName,
+      emergencyContactPhone,
+      joinDate,
+      shiftStart,
+      shiftEnd,
+      employmentStatus,
+      departmentId,
+    } = req.body;
+
+    if (!fullName || !email || !departmentId) {
+      return res.status(400).json({
+        error: 'Missing required fields: fullName, email, and department are required',
+      });
+    }
+
+    const section = await Section.findById(departmentId);
+    if (!section) return res.status(404).json({ error: 'Department not found' });
+    if (section.sectionType !== 'department') {
+      return res.status(400).json({ error: 'Department must be a department-type section' });
+    }
+
+    // HR may only enroll employees into their assigned department
+    if (req.user.role === 'hr' && req.user.sectionId && departmentId !== req.user.sectionId.toString()) {
+      return res.status(403).json({
+        error: 'Access denied. You can only enroll employees into your assigned department.',
+      });
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    // Generate temporary password for new employee
+    const tempPassword = `Temp${employeeId || Date.now()}@123`;
+
+    const userData = {
+      name: fullName.trim(),
+      email: email.toLowerCase().trim(),
+      passwordHash: tempPassword,
+      phone: phone?.trim() || '',
+      address: address?.trim() || '',
+      dateOfBirth: dateOfBirth || undefined,
+      gender: gender || '',
+      role: 'lecturer',
+      status: employmentStatus === 'active' || !employmentStatus ? 'active' : 'disabled',
+      employeeId: employeeId?.trim() || '',
+      jobTitle: jobTitle?.trim() || '',
+      emergencyContactName: emergencyContactName?.trim() || '',
+      emergencyContactPhone: emergencyContactPhone?.trim() || '',
+      joinDate: joinDate || undefined,
+      shiftStart: shiftStart?.trim() || '',
+      shiftEnd: shiftEnd?.trim() || '',
+      employmentStatus: employmentStatus || 'active',
+    };
+
+    const user = await User.create(userData);
+
+    await SectionMember.create({ sectionId: departmentId, userId: user._id });
+
+    await AuditLog.create({
+      actorUserId: req.user._id,
+      action: 'ENROLL_EMPLOYEE',
+      metadata: { userId: user._id, email: user.email, departmentId },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Employee enrolled successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        employeeId: user.employeeId,
+        departmentId,
+      },
+      tempPassword,
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+    next(error);
+  }
+};
+
 const uploadUserImage = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -351,6 +546,7 @@ module.exports = {
   createUser,
   getUsers,
   updateUserStatus,
+  updateUser,
   deleteUser,
   getStats,
   updateUserNotes,
@@ -358,5 +554,6 @@ module.exports = {
   verifyUser,
   getUserActivity,
   uploadUserImage,
+  enrollEmployee,
 };
 

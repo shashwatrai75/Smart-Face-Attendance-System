@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
+const Section = require('../models/Section');
 const config = require('../config/env');
 const logger = require('../utils/logger');
 
@@ -143,6 +144,15 @@ const login = async (req, res, next) => {
 
     const token = generateToken(user._id);
 
+    // Include assigned department for HR (and others with sectionId)
+    let department = null;
+    if (user.sectionId) {
+      const section = await Section.findById(user.sectionId).select('sectionName sectionType').lean();
+      if (section) {
+        department = { id: section._id, name: section.sectionName, sectionType: section.sectionType };
+      }
+    }
+
     // Log login
     await AuditLog.create({
       actorUserId: user._id,
@@ -160,6 +170,8 @@ const login = async (req, res, next) => {
         role: user.role,
         institutionName: user.institutionName,
         linkedStudentId: user.linkedStudentId || null,
+        sectionId: user.sectionId || null,
+        department: department || null,
       },
     });
   } catch (error) {

@@ -7,6 +7,7 @@ const {
   createUser,
   getUsers,
   updateUserStatus,
+  updateUser,
   deleteUser,
   getStats,
   updateUserNotes,
@@ -14,16 +15,21 @@ const {
   verifyUser,
   getUserActivity,
   uploadUserImage,
+  enrollEmployee,
 } = require('../controllers/adminController');
 
-// All routes require authentication and admin role
 router.use(authenticate);
-router.use(authorize('admin', 'superadmin'));
 router.use(apiLimiter);
 
+// Enroll employee: hr, superadmin only
+router.post('/enroll-employee', authorize('hr', 'superadmin'), enrollEmployee);
+
+// Rest: admin, superadmin only
+router.use(authorize('admin', 'superadmin'));
 router.post('/create-user', createUser);
 router.get('/users', getUsers);
 router.put('/user/:id/status', updateUserStatus);
+router.put('/user/:id', updateUser);
 router.put('/user/:id/notes', updateUserNotes);
 router.put('/user/:id/tags', updateUserTags);
 router.put('/user/:id/verify', verifyUser);
