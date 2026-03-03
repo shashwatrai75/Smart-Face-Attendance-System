@@ -21,10 +21,10 @@ router.post('/start-session', authorize('superadmin', 'admin', 'lecturer'), star
 router.post('/mark', authorize('superadmin', 'admin', 'lecturer'), markAttendance);
 router.post('/end-session', authorize('superadmin', 'admin', 'lecturer'), endSession);
 router.put('/manual-override', authorize('superadmin', 'admin', 'lecturer'), manualOverride);
-router.get('/history', authorize('superadmin', 'admin', 'lecturer', 'viewer'), getAttendanceHistory);
-router.get('/sessions', authorize('superadmin', 'admin', 'lecturer', 'viewer'), getSessionHistory);
-router.get('/session/:sessionId', authorize('superadmin', 'admin', 'lecturer', 'viewer'), getSessionDetails);
-router.get('/calendar', authorize('superadmin', 'admin', 'lecturer', 'viewer'), getCalendarAttendance);
+router.get('/history', authorize('superadmin', 'admin', 'lecturer'), getAttendanceHistory);
+router.get('/sessions', authorize('superadmin', 'admin', 'lecturer'), getSessionHistory);
+router.get('/session/:sessionId', authorize('superadmin', 'admin', 'lecturer'), getSessionDetails);
+router.get('/calendar', authorize('superadmin', 'admin', 'lecturer'), getCalendarAttendance);
 
 module.exports = router;
 

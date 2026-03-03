@@ -4,7 +4,6 @@ import { markAttendance } from '../api/api';
 let isOnline = navigator.onLine;
 let isSyncing = false;
 
-// Listen to online/offline events
 window.addEventListener('online', () => {
   isOnline = true;
   syncPendingData();
@@ -20,17 +19,18 @@ export const syncPendingData = async () => {
   isSyncing = true;
 
   try {
-    // Sync pending attendance
-    const pendingAttendance = await db.pendingAttendance.where('synced').equals(0).toArray();
+    const pendingAttendance = await db.pendingAttendance
+      .where('synced')
+      .equals(0)
+      .toArray();
 
-    // Group by sessionId and classId for batch processing
     const groupedRecords = {};
     pendingAttendance.forEach((record) => {
-      const key = `${record.sessionId}-${record.classId}`;
+      const key = `${record.sessionId}-${record.sectionId || record.classId}`;
       if (!groupedRecords[key]) {
         groupedRecords[key] = {
           sessionId: record.sessionId,
-          classId: record.classId,
+          sectionId: record.sectionId || record.classId,
           records: [],
         };
       }
@@ -42,29 +42,26 @@ export const syncPendingData = async () => {
       });
     });
 
-    // Sync each group
     for (const key in groupedRecords) {
       const group = groupedRecords[key];
       try {
-        await markAttendance(
-          group.sessionId,
-          group.classId,
-          group.records
-        );
+        await markAttendance({
+          sessionId: group.sessionId,
+          sectionId: group.sectionId,
+          recognizedStudents: group.records,
+        });
 
-        // Mark all records in this group as synced
         for (const record of pendingAttendance) {
-          if (record.sessionId === group.sessionId && record.classId === group.classId) {
+          const recordKey = `${record.sessionId}-${record.sectionId || record.classId}`;
+          if (recordKey === key) {
             await db.pendingAttendance.update(record.id, { synced: 1 });
           }
         }
       } catch (error) {
         console.error('Error syncing attendance records:', error);
-        // Keep records for retry
       }
     }
 
-    // Clean up synced records older than 7 days
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     await db.pendingAttendance
       .where('synced')
@@ -78,10 +75,16 @@ export const syncPendingData = async () => {
   }
 };
 
-export const saveAttendanceOffline = async (sessionId, classId, studentId, status, time) => {
+export const saveAttendanceOffline = async (
+  sessionId,
+  sectionId,
+  studentId,
+  status,
+  time
+) => {
   await db.pendingAttendance.add({
     sessionId,
-    classId,
+    sectionId,
     studentId,
     status,
     time,
@@ -94,10 +97,8 @@ export const saveAttendanceOffline = async (sessionId, classId, studentId, statu
 export const getIsOnline = () => isOnline;
 export const getIsSyncing = () => isSyncing;
 
-// Auto-sync every 30 seconds when online
 setInterval(() => {
   if (isOnline && !isSyncing) {
     syncPendingData();
   }
 }, 30000);
-

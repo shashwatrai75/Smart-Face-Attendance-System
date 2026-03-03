@@ -7,10 +7,10 @@ const attendanceSchema = new mongoose.Schema(
       ref: 'Student',
       required: [true, 'Student is required'],
     },
-    classId: {
+    sectionId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Class',
-      required: [true, 'Class is required'],
+      ref: 'Section',
+      required: [true, 'Section is required'],
     },
     lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -46,7 +46,12 @@ const attendanceSchema = new mongoose.Schema(
     },
     sessionId: {
       type: String,
-      required: [true, 'Session ID is required'],
+      default: null,
+    },
+    classSessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ClassSession',
+      default: null,
     },
     remark: {
       type: String,
@@ -58,16 +63,11 @@ const attendanceSchema = new mongoose.Schema(
   }
 );
 
-// Compound unique index to prevent duplicates
-attendanceSchema.index(
-  { studentId: 1, classId: 1, date: 1, sessionId: 1 },
-  { unique: true }
-);
-
-// Indexes for queries
-attendanceSchema.index({ classId: 1, date: 1 });
+attendanceSchema.index({ sectionId: 1, date: 1 });
+attendanceSchema.index({ classSessionId: 1, date: 1 });
+attendanceSchema.index({ studentId: 1, classSessionId: 1, date: 1 }, { unique: true, sparse: true });
+attendanceSchema.index({ studentId: 1, sectionId: 1, date: 1, sessionId: 1 }, { unique: true, sparse: true });
 attendanceSchema.index({ studentId: 1 });
 attendanceSchema.index({ lecturerId: 1 });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);
-

@@ -49,13 +49,11 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
   if (allowedRoles.length > 0 && !allowedRoles.includes(userWithRole.role)) {
     console.log('PrivateRoute: User role not allowed, redirecting');
     const role = userWithRole.role;
-    if (role === 'admin' || role === 'superadmin') {
-      return <Navigate to="/admin/dashboard" replace />;
-    }
-    if (role === 'lecturer') {
-      return <Navigate to="/lecturer/dashboard" replace />;
-    }
-    return <Navigate to="/viewer/history" replace />;
+    if (role === 'superadmin') return <Navigate to="/superadmin/system-settings" replace />;
+    if (role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+    if (role === 'hr') return <Navigate to="/hr/dashboard" replace />;
+    if (role === 'lecturer') return <Navigate to="/lecturer/dashboard" replace />;
+    return <Navigate to="/lecturer/dashboard" replace />;
   }
 
   console.log('PrivateRoute: Rendering children');

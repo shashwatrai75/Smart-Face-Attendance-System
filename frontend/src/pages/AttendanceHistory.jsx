@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSessionHistory, getSessionDetails, getClasses, getAttendanceHistory } from '../api/api';
+import { getSessionHistory, getSessionDetails, getSections } from '../api/api';
 import { formatDate, formatDateTime } from '../utils/date';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
@@ -10,10 +10,8 @@ import Toast from '../components/Toast';
 const AttendanceHistory = () => {
   const { user } = useAuth();
   const canViewTeacherAttendance = user?.role === 'superadmin' || user?.role === 'admin';
-  const isViewer = user?.role === 'viewer';
   const [sessions, setSessions] = useState([]);
-  const [myAttendance, setMyAttendance] = useState([]);
-  const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -22,7 +20,7 @@ const AttendanceHistory = () => {
   const [showModal, setShowModal] = useState(false);
   const [activeTab, setActiveTab] = useState('sessions');
   const [filters, setFilters] = useState({
-    classId: '',
+    sectionId: '',
     startDate: '',
     endDate: '',
   });
@@ -30,7 +28,7 @@ const AttendanceHistory = () => {
 
   useEffect(() => {
     try {
-      if (!isViewer) fetchClasses();
+      fetchSections();
       fetchSessions();
     } catch (err) {
       console.error('Error initializing AttendanceHistory:', err);
@@ -38,55 +36,39 @@ const AttendanceHistory = () => {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isViewer, filters.classId, filters.startDate, filters.endDate]);
+  }, [filters.sectionId, filters.startDate, filters.endDate]);
 
-  const fetchClasses = async () => {
+  const fetchSections = async () => {
     try {
-      const response = await getClasses();
-      if (response && response.classes) {
-        setClasses(Array.isArray(response.classes) ? response.classes : []);
+      const response = await getSections();
+      if (response && response.sections) {
+        setSections(Array.isArray(response.sections) ? response.sections : []);
       } else {
-        setClasses([]);
+        setSections([]);
       }
     } catch (err) {
-      console.error('Failed to load classes:', err);
-      setClasses([]);
+      console.error('Failed to load sections:', err);
+      setSections([]);
     }
   };
 
   const fetchSessions = async () => {
     setLoading(true);
     try {
-      if (isViewer) {
-        const params = {};
-        if (filters.startDate) params.dateFrom = filters.startDate;
-        if (filters.endDate) params.dateTo = filters.endDate;
-        const response = await getAttendanceHistory(params);
-        if (response && response.attendance) {
-          setMyAttendance(Array.isArray(response.attendance) ? response.attendance : []);
-        } else {
-          setMyAttendance([]);
-        }
+      const params = {};
+      if (filters.sectionId) params.sectionId = filters.sectionId;
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
+      const response = await getSessionHistory(params);
+      if (response && response.sessions) {
+        setSessions(Array.isArray(response.sessions) ? response.sessions : []);
       } else {
-        const params = {};
-        if (filters.classId) params.classId = filters.classId;
-        if (filters.startDate) params.startDate = filters.startDate;
-        if (filters.endDate) params.endDate = filters.endDate;
-        const response = await getSessionHistory(params);
-        if (response && response.sessions) {
-          setSessions(Array.isArray(response.sessions) ? response.sessions : []);
-        } else {
-          setSessions([]);
-        }
+        setSessions([]);
       }
     } catch (err) {
       console.error('Sessions fetch error:', err);
       setToast({ message: err?.error || err?.response?.data?.error || 'Failed to load attendance history', type: 'error' });
-      if (isViewer) {
-        setMyAttendance([]);
-      } else {
-        setSessions([]);
-      }
+      setSessions([]);
     } finally {
       setLoading(false);
     }
@@ -168,7 +150,7 @@ const AttendanceHistory = () => {
                 onClick={() => {
                   setError(null);
                   setLoading(true);
-                  fetchClasses();
+                  fetchSections();
                   fetchSessions();
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -197,15 +179,15 @@ const AttendanceHistory = () => {
         <main className="flex-1 p-8 bg-gray-50 dark:bg-gray-900">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {isViewer ? 'My Attendance' : 'Attendance History'}
+              Attendance History
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              {isViewer ? 'View your attendance records' : 'View previously recorded attendance sessions'}
+              View previously recorded attendance sessions
             </p>
           </div>
 
           {/* Tabs - Teacher Attendance only for superadmin/admin */}
-          {!isViewer && canViewTeacherAttendance && (
+          {canViewTeacherAttendance && (
             <div className="flex gap-2 mb-6">
               <button
                 onClick={() => setActiveTab('sessions')}
@@ -233,24 +215,22 @@ const AttendanceHistory = () => {
           {/* Filters Section */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
-            <div className={`grid grid-cols-1 gap-4 ${isViewer ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
-              {!isViewer && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
                   <select
-                    value={filters.classId}
-                    onChange={(e) => handleFilterChange('classId', e.target.value)}
+                    value={filters.sectionId}
+                    onChange={(e) => handleFilterChange('sectionId', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">All Classes</option>
-                    {classes.map((classItem) => (
-                      <option key={classItem._id || classItem.id} value={classItem._id || classItem.id}>
-                        {classItem.className}
+                    <option value="">All Sections</option>
+                    {sections.map((sec) => (
+                      <option key={sec._id || sec.id} value={sec._id || sec.id}>
+                        {sec.sectionName}
                       </option>
-                    ))}
-                  </select>
+))}
+              </select>
                 </div>
-              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
                 <input
@@ -280,54 +260,7 @@ const AttendanceHistory = () => {
             </div>
           </div>
 
-          {/* My Attendance Table - Viewer only */}
-          {isViewer && (
-            <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {myAttendance.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
-                          No attendance records found. Contact administrator if your account is not linked to a student record.
-                        </td>
-                      </tr>
-                    ) : (
-                      myAttendance.map((record) => (
-                        <tr key={record._id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {record.date ? formatDate(record.date) : 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {record.classId?.className || 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(record.status)}`}>
-                              {record.status?.charAt(0).toUpperCase() + record.status?.slice(1) || 'N/A'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {record.time || '—'}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Sessions Table - Admin, Lecturer (hidden for viewer) */}
-          {!isViewer && (
+          {/* Sessions Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -337,7 +270,7 @@ const AttendanceHistory = () => {
                       Date
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Class Name
+                      Section
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Total Students
@@ -386,8 +319,7 @@ const AttendanceHistory = () => {
                           {session.date ? formatDate(session.date) : 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{session.className || 'N/A'}</div>
-                          <div className="text-sm text-gray-500">{session.subject || ''}</div>
+                          <div className="text-sm font-medium text-gray-900">{session.sectionName || 'N/A'}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {session.totalStudents ?? 0}
@@ -421,7 +353,6 @@ const AttendanceHistory = () => {
               </table>
             </div>
           </div>
-          )}
 
           {/* Session Details Modal */}
           {showModal && (
@@ -433,7 +364,7 @@ const AttendanceHistory = () => {
                     <h2 className="text-xl font-bold text-gray-900">Session Details</h2>
                     {sessionDetails?.session && (
                       <p className="text-sm text-gray-600 mt-1">
-                        {sessionDetails.session.className} - {formatDate(sessionDetails.session.date)}
+                        {sessionDetails.session.sectionName} - {formatDate(sessionDetails.session.date)}
                       </p>
                     )}
                   </div>
@@ -528,6 +459,15 @@ const AttendanceHistory = () => {
                                 Student Name
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Guardian
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                DOB
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Gender
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Status
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -549,6 +489,24 @@ const AttendanceHistory = () => {
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                                   {student.studentName}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-600">
+                                  {student.guardianName || student.guardianPhone ? (
+                                    <span>
+                                      {student.guardianName || '—'}
+                                      {student.guardianPhone && (
+                                        <span className="block text-xs text-gray-500">{student.guardianPhone}</span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">—</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                  {student.dateOfBirth ? formatDate(student.dateOfBirth) : '—'}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                  {student.gender ? student.gender.charAt(0).toUpperCase() + student.gender.slice(1) : '—'}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   <span

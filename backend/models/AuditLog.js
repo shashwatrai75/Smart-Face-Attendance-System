@@ -24,6 +24,12 @@ const auditLogSchema = new mongoose.Schema(
         'UPDATE_CLASS',
         'DELETE_CLASS',
         'END_SESSION',
+        'UPDATE_SYSTEM_SETTINGS',
+        'PURGE_ATTENDANCE',
+        'PURGE_DATA',
+        'DELETE_SECTION',
+        'DISABLE_ADMIN',
+        'ENABLE_ADMIN',
       ],
     },
     metadata: {

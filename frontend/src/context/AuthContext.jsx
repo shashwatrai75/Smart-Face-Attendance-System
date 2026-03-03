@@ -25,9 +25,11 @@ export const AuthProvider = ({ children }) => {
         id: userData.id || userData._id || null,
         name: userData.name || 'User',
         email: userData.email || '',
-        role: userData.role || 'viewer',
+        role: userData.role || 'lecturer',
         institutionName: userData.institutionName || '',
         linkedStudentId: userData.linkedStudentId || null,
+        sectionId: userData.sectionId || null,
+        department: userData.department || null,
       };
       
       console.log('AuthContext: Restoring user from localStorage:', validUserData);
@@ -50,9 +52,11 @@ export const AuthProvider = ({ children }) => {
       id: userData.id || userData._id,
       name: userData.name || 'User',
       email: userData.email || '',
-      role: userData.role || 'viewer',
+      role: userData.role || 'lecturer',
       institutionName: userData.institutionName || '',
       linkedStudentId: userData.linkedStudentId || null,
+      sectionId: userData.sectionId || null,
+      department: userData.department || null,
     };
     
     console.log('AuthContext: Saving complete user data:', completeUserData);
@@ -68,8 +72,17 @@ export const AuthProvider = ({ children }) => {
     setUserState(null);
   };
 
+  const updateUser = (partial) => {
+    setUserState((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial };
+      setUser(next);
+      return next;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -13,7 +13,7 @@ const exportAttendance = async (attendanceData, format = 'xlsx') => {
     { header: 'Time', key: 'time', width: 10 },
     { header: 'Student Name', key: 'studentName', width: 25 },
     { header: 'Roll No', key: 'rollNo', width: 15 },
-    { header: 'Class', key: 'className', width: 20 },
+    { header: 'Section', key: 'sectionName', width: 20 },
     { header: 'Status', key: 'status', width: 12 },
     { header: 'Teacher', key: 'teacherName', width: 25 },
   ];

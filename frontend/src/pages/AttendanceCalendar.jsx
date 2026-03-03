@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { getCalendarAttendance, getClasses, getStudents, getUsers } from '../api/api';
+import { getCalendarAttendance, getSections, getStudents, getUsers } from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -12,7 +12,6 @@ const AttendanceCalendar = () => {
   const { user } = useAuth();
   const canSelectTeacherOrStudent = user?.role === 'superadmin' || user?.role === 'admin';
   const isLecturer = user?.role === 'lecturer';
-  const isViewer = user?.role === 'viewer';
 
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -23,11 +22,11 @@ const AttendanceCalendar = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedDateStr, setSelectedDateStr] = useState(null);
 
-  const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
   const [students, setStudents] = useState([]);
   const [lecturers, setLecturers] = useState([]);
   const [filters, setFilters] = useState({
-    classId: '',
+    sectionId: '',
     studentId: '',
     lecturerId: '',
   });
@@ -37,34 +36,34 @@ const AttendanceCalendar = () => {
 
   useEffect(() => {
     if (canSelectTeacherOrStudent) {
-      getClasses().then((r) => setClasses(r.classes || [])).catch(() => setClasses([]));
+      getSections().then((r) => setSections(r.sections || [])).catch(() => setSections([]));
       getUsers().then((r) => {
         const users = r.users || [];
         setLecturers(users.filter((u) => u.role === 'lecturer'));
       }).catch(() => setLecturers([]));
     } else if (isLecturer) {
-      getClasses().then((r) => setClasses(r.classes || [])).catch(() => setClasses([]));
+      getSections().then((r) => setSections(r.sections || [])).catch(() => setSections([]));
     }
   }, [canSelectTeacherOrStudent, isLecturer]);
 
   useEffect(() => {
-    if (filters.classId && (canSelectTeacherOrStudent || isLecturer)) {
-      getStudents(filters.classId).then((r) => setStudents(r.students || [])).catch(() => setStudents([]));
+    if (filters.sectionId && (canSelectTeacherOrStudent || isLecturer)) {
+      getStudents(filters.sectionId).then((r) => setStudents(r.students || [])).catch(() => setStudents([]));
     } else {
       setStudents([]);
     }
-  }, [filters.classId, canSelectTeacherOrStudent, isLecturer]);
+  }, [filters.sectionId, canSelectTeacherOrStudent, isLecturer]);
 
   useEffect(() => {
     fetchCalendarData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, year, filters.classId, filters.studentId, filters.lecturerId]);
+  }, [month, year, filters.sectionId, filters.studentId, filters.lecturerId]);
 
   const fetchCalendarData = async () => {
     setLoading(true);
     try {
       const params = { month, year };
-      if (filters.classId) params.classId = filters.classId;
+      if (filters.sectionId) params.sectionId = filters.sectionId;
       if (filters.studentId) params.studentId = filters.studentId;
       if (filters.lecturerId) params.lecturerId = filters.lecturerId;
 
@@ -137,16 +136,16 @@ const AttendanceCalendar = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {(canSelectTeacherOrStudent || isLecturer) && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
                   <select
-                    value={filters.classId}
-                    onChange={(e) => setFilters({ ...filters, classId: e.target.value })}
+                    value={filters.sectionId}
+                    onChange={(e) => setFilters({ ...filters, sectionId: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">All Classes</option>
-                    {classes.map((c) => (
-                      <option key={c._id || c.id} value={c._id || c.id}>
-                        {c.className}
+                    <option value="">All Sections</option>
+                    {sections.map((s) => (
+                      <option key={s._id || s.id} value={s._id || s.id}>
+                        {s.sectionName}
                       </option>
                     ))}
                   </select>
@@ -275,7 +274,7 @@ const AttendanceCalendar = () => {
                               {rec.studentId?.fullName || 'N/A'}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {rec.classId?.className || 'N/A'} • {rec.time || '—'}
+                              {rec.sectionId?.sectionName || 'N/A'} • {rec.time || '—'}
                             </p>
                           </div>
                           <span className={`px-2 py-1 text-xs font-semibold rounded ${getStatusBadge(rec.status)}`}>

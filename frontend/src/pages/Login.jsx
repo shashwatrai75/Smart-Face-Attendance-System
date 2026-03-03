@@ -6,9 +6,10 @@ import { validateEmail } from '../utils/validators';
 import Toast from '../components/Toast';
 
 const getDashboardPath = (role) => {
-  if (role === 'admin' || role === 'superadmin') return '/admin/dashboard';
+  if (role === 'superadmin') return '/superadmin/system-settings';
+  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'hr') return '/hr/dashboard';
   if (role === 'lecturer') return '/lecturer/dashboard';
-  if (role === 'viewer') return '/viewer/history';
   return '/admin/dashboard';
 };
 
@@ -51,8 +52,11 @@ const Login = () => {
           id: response.user.id || response.user._id,
           name: response.user.name || 'User',
           email: response.user.email || '',
-          role: response.user.role || 'viewer',
+          role: response.user.role || 'lecturer',
           institutionName: response.user.institutionName || '',
+          linkedStudentId: response.user.linkedStudentId || null,
+          sectionId: response.user.sectionId || null,
+          department: response.user.department || null,
         };
 
         login(response.token, userData);

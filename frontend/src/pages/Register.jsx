@@ -30,6 +30,11 @@ const Register = () => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
+  // Only Superadmin can assign Admin, HR, or Superadmin roles
+  const isSuperadmin =
+    currentUser?.role === 'superadmin' ||
+    (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('user') || '{}')?.role === 'superadmin');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -72,7 +77,7 @@ const Register = () => {
               onClose={() => setToast(null)}
             />
           )}
-          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md max-w-3xl dark:border dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md w-full dark:border dark:border-gray-700">
             <h2 className="text-2xl font-bold mb-6">Create New User</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Personal Information Section */}
@@ -282,10 +287,12 @@ const Register = () => {
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="lecturer">Lecturer</option>
-                      <option value="viewer">Viewer</option>
-                      <option value="admin">Admin</option>
-                      {currentUser?.role === 'superadmin' && (
-                        <option value="superadmin">Superadmin</option>
+                      {isSuperadmin && (
+                        <>
+                          <option value="admin">Admin</option>
+                          <option value="hr">HR</option>
+                          <option value="superadmin">Superadmin</option>
+                        </>
                       )}
                     </select>
                   </div>

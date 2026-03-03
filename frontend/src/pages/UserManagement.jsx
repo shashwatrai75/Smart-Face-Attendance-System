@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getUsers, updateUserStatus, deleteUser, updateUserNotes, updateUserTags, verifyUser, getUserActivity, uploadUserImage } from '../api/api';
+import { getUsers, updateUserStatus, updateUser, deleteUser, updateUserNotes, updateUserTags, verifyUser, getUserActivity, uploadUserImage } from '../api/api';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import Loader from '../components/Loader';
@@ -31,6 +31,8 @@ const UserManagement = () => {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserDetails, setShowUserDetails] = useState(false);
+  const [editUserMode, setEditUserMode] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -66,13 +68,17 @@ const UserManagement = () => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
+  const isSuperadmin =
+    currentUser?.role === 'superadmin' ||
+    (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('user') || '{}')?.role === 'superadmin');
+
   useEffect(() => {
     fetchUsers();
   }, []);
 
   useEffect(() => {
     filterAndSortUsers();
-  }, [users, searchTerm, roleFilter, statusFilter, sortBy, sortOrder, dateRange, quickFilters]);
+  }, [users, searchTerm, roleFilter, statusFilter, sortBy, sortOrder, dateRange, quickFilters, currentUser?.role]);
 
   const fetchUsers = async () => {
     try {
@@ -86,7 +92,13 @@ const UserManagement = () => {
   };
 
   const filterAndSortUsers = () => {
-    let filtered = [...users];
+    // Role-based visibility: Admin must not see admin/superadmin accounts
+    const roleFiltered =
+      currentUser?.role === 'admin'
+        ? users.filter((u) => u.role !== 'admin' && u.role !== 'superadmin')
+        : users;
+
+    let filtered = [...roleFiltered];
 
     // Search filter
     if (searchTerm) {
@@ -222,7 +234,6 @@ const UserManagement = () => {
     const admins = users.filter((u) => u.role === 'admin').length;
     const superadmins = users.filter((u) => u.role === 'superadmin').length;
     const lecturers = users.filter((u) => u.role === 'lecturer').length;
-    const viewers = users.filter((u) => u.role === 'viewer').length;
     const verified = users.filter((u) => u.verified).length;
     const recentLogin = users.filter((u) => {
       if (!u.lastLogin) return false;
@@ -236,7 +247,7 @@ const UserManagement = () => {
       return userDate >= monthStart;
     }).length;
 
-    return { total, active, disabled, admins, superadmins, lecturers, viewers, verified, recentLogin, newThisMonth };
+    return { total, active, disabled, admins, superadmins, lecturers, verified, recentLogin, newThisMonth };
   };
 
   const stats = getStatistics();
@@ -321,14 +332,14 @@ const UserManagement = () => {
     }
   };
 
-  // Chart data
+  // Chart data - only show roles that current user can see
   const getRoleDistributionData = () => {
-    return [
-      { name: 'Admin', value: stats.admins, color: '#8b5cf6' },
-      { name: 'Superadmin', value: stats.superadmins, color: '#ec4899' },
-      { name: 'Lecturer', value: stats.lecturers, color: '#3b82f6' },
-      { name: 'Viewer', value: stats.viewers, color: '#6b7280' },
-    ];
+    const data = [{ name: 'Lecturer', value: stats.lecturers, color: '#3b82f6' }];
+    if (currentUser?.role === 'superadmin') {
+      data.unshift({ name: 'Admin', value: stats.admins, color: '#8b5cf6' });
+      data.unshift({ name: 'Superadmin', value: stats.superadmins, color: '#ec4899' });
+    }
+    return data;
   };
 
   const getStatusDistributionData = () => {
@@ -547,6 +558,58 @@ const UserManagement = () => {
     }
     setSelectedUser(user);
     setShowUserDetails(true);
+    setEditUserMode(false);
+  };
+
+  const handleEditUser = () => {
+    setEditFormData({
+      name: selectedUser.name || '',
+      email: selectedUser.email || '',
+      phone: selectedUser.phone || '',
+      address: selectedUser.address || '',
+      city: selectedUser.city || '',
+      state: selectedUser.state || '',
+      zipCode: selectedUser.zipCode || '',
+      country: selectedUser.country || '',
+      dateOfBirth: selectedUser.dateOfBirth ? new Date(selectedUser.dateOfBirth).toISOString().split('T')[0] : '',
+      gender: selectedUser.gender || '',
+      role: selectedUser.role || 'lecturer',
+      institutionName: selectedUser.institutionName || '',
+      status: selectedUser.status || 'active',
+      guardianName: selectedUser.guardianName || '',
+      guardianPhone: selectedUser.guardianPhone || '',
+    });
+    setEditUserMode(true);
+  };
+
+  const handleSaveUser = async () => {
+    try {
+      const payload = {
+        name: editFormData.name,
+        email: editFormData.email,
+        phone: editFormData.phone || undefined,
+        address: editFormData.address || undefined,
+        city: editFormData.city || undefined,
+        state: editFormData.state || undefined,
+        zipCode: editFormData.zipCode || undefined,
+        country: editFormData.country || undefined,
+        dateOfBirth: editFormData.dateOfBirth || undefined,
+        gender: editFormData.gender || '',
+        role: editFormData.role,
+        institutionName: editFormData.institutionName || undefined,
+        status: editFormData.status,
+        guardianName: editFormData.guardianName || undefined,
+        guardianPhone: editFormData.guardianPhone || undefined,
+      };
+      const response = await updateUser(selectedUser._id || selectedUser.id, payload);
+      const updatedUser = response.user;
+      setSelectedUser(updatedUser);
+      setUsers(users.map((u) => (u._id === updatedUser._id || u.id === updatedUser.id) ? { ...u, ...updatedUser } : u));
+      setEditUserMode(false);
+      setToast({ message: 'User updated successfully', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.response?.data?.error || err.error || 'Failed to update user', type: 'error' });
+    }
   };
 
   const formatDate = (dateString) => {
@@ -664,6 +727,7 @@ const UserManagement = () => {
                   onClick={() => {
                     setShowUserDetails(false);
                     setSelectedUser(null);
+                    setEditUserMode(false);
                   }}
                   className="text-white hover:text-gray-200 focus:outline-none transition-colors ml-4"
                 >
@@ -681,151 +745,326 @@ const UserManagement = () => {
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Personal Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Personal Information</h3>
-                  <div>
-                    <p className="text-sm text-gray-600">Full Name</p>
-                    <p className="text-gray-900 font-medium">{selectedUser.name || 'Not provided'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Email</p>
-                    <p className="text-gray-900 font-medium">{selectedUser.email || 'Not provided'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Phone Number</p>
-                    <p className="text-gray-900 font-medium">{selectedUser.phone || 'Not provided'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Date of Birth</p>
-                    <p className="text-gray-900 font-medium">{formatDate(selectedUser.dateOfBirth)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Gender</p>
-                    <p className="text-gray-900 font-medium">
-                      {selectedUser.gender ? selectedUser.gender.charAt(0).toUpperCase() + selectedUser.gender.slice(1) : 'Not provided'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Account Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Account Information</h3>
-                  <div>
-                    <p className="text-sm text-gray-600">Role</p>
-                    <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
-                      {selectedUser.role?.charAt(0).toUpperCase() + selectedUser.role?.slice(1) || 'Not provided'}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Status</p>
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedUser.status === 'active'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                        }`}
-                    >
-                      {selectedUser.status?.charAt(0).toUpperCase() + selectedUser.status?.slice(1) || 'Not provided'}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Institution Name</p>
-                    <p className="text-gray-900 font-medium">{selectedUser.institutionName || 'Not provided'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Account Created</p>
-                    <p className="text-gray-900 font-medium">{formatDate(selectedUser.createdAt)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Last Login</p>
-                    <p className="text-gray-900 font-medium">{formatLastLogin(selectedUser.lastLogin)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Login Count</p>
-                    <p className="text-gray-900 font-medium">{selectedUser.loginCount || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Verified</p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedUser.verified ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                      {selectedUser.verified ? '✓ Verified' : 'Not Verified'}
-                    </span>
-                  </div>
-                  {selectedUser.tags && selectedUser.tags.length > 0 && (
+              {editUserMode ? (
+                /* Edit Form */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Personal Information</h3>
                     <div>
-                      <p className="text-sm text-gray-600">Tags</p>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {selectedUser.tags.map((tag, idx) => (
-                          <span key={idx} className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                      <label className="block text-sm text-gray-600 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        value={editFormData.name || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      />
                     </div>
-                  )}
-                  {selectedUser.notes && (
                     <div>
-                      <p className="text-sm text-gray-600">Notes</p>
-                      <p className="text-gray-900 font-medium text-sm bg-yellow-50 p-2 rounded border border-yellow-200">
-                        {selectedUser.notes}
-                      </p>
+                      <label className="block text-sm text-gray-600 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={editFormData.email || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      />
                     </div>
-                  )}
-                </div>
-
-                {/* Address Information */}
-                {(selectedUser.address || selectedUser.city || selectedUser.state || selectedUser.zipCode || selectedUser.country) && (
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Phone Number</label>
+                      <input
+                        type="text"
+                        value={editFormData.phone || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Date of Birth</label>
+                      <input
+                        type="date"
+                        value={editFormData.dateOfBirth || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, dateOfBirth: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Gender</label>
+                      <select
+                        value={editFormData.gender || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Account Information</h3>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Role</label>
+                      <select
+                        value={editFormData.role || 'lecturer'}
+                        onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="lecturer">Lecturer</option>
+                        {isSuperadmin && (
+                          <>
+                            <option value="admin">Admin</option>
+                            <option value="hr">HR</option>
+                            <option value="superadmin">Superadmin</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Status</label>
+                      <select
+                        value={editFormData.status || 'active'}
+                        onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="active">Active</option>
+                        <option value="disabled">Disabled</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Institution Name</label>
+                      <input
+                        type="text"
+                        value={editFormData.institutionName || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, institutionName: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Guardian Name</label>
+                      <input
+                        type="text"
+                        value={editFormData.guardianName || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, guardianName: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        placeholder="Parent/guardian name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Guardian Phone</label>
+                      <input
+                        type="tel"
+                        value={editFormData.guardianPhone || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, guardianPhone: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        placeholder="Contact number"
+                      />
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      <p>Account Created: {formatDate(selectedUser.createdAt)}</p>
+                      <p>Last Login: {formatLastLogin(selectedUser.lastLogin)}</p>
+                    </div>
+                  </div>
                   <div className="md:col-span-2 space-y-4">
                     <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Address Information</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {selectedUser.address && (
-                        <div>
-                          <p className="text-sm text-gray-600">Address</p>
-                          <p className="text-gray-900 font-medium">{selectedUser.address}</p>
-                        </div>
-                      )}
-                      {selectedUser.city && (
-                        <div>
-                          <p className="text-sm text-gray-600">City</p>
-                          <p className="text-gray-900 font-medium">{selectedUser.city}</p>
-                        </div>
-                      )}
-                      {selectedUser.state && (
-                        <div>
-                          <p className="text-sm text-gray-600">State/Province</p>
-                          <p className="text-gray-900 font-medium">{selectedUser.state}</p>
-                        </div>
-                      )}
-                      {selectedUser.zipCode && (
-                        <div>
-                          <p className="text-sm text-gray-600">Zip/Postal Code</p>
-                          <p className="text-gray-900 font-medium">{selectedUser.zipCode}</p>
-                        </div>
-                      )}
-                      {selectedUser.country && (
-                        <div>
-                          <p className="text-sm text-gray-600">Country</p>
-                          <p className="text-gray-900 font-medium">{selectedUser.country}</p>
-                        </div>
-                      )}
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Address</label>
+                        <input
+                          type="text"
+                          value={editFormData.address || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">City</label>
+                        <input
+                          type="text"
+                          value={editFormData.city || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">State/Province</label>
+                        <input
+                          type="text"
+                          value={editFormData.state || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, state: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Zip/Postal Code</label>
+                        <input
+                          type="text"
+                          value={editFormData.zipCode || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, zipCode: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Country</label>
+                        <input
+                          type="text"
+                          value={editFormData.country || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, country: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                /* View Mode */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Personal Information</h3>
+                    <div>
+                      <p className="text-sm text-gray-600">Full Name</p>
+                      <p className="text-gray-900 font-medium">{selectedUser.name || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Email</p>
+                      <p className="text-gray-900 font-medium">{selectedUser.email || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Phone Number</p>
+                      <p className="text-gray-900 font-medium">{selectedUser.phone || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Date of Birth</p>
+                      <p className="text-gray-900 font-medium">{formatDate(selectedUser.dateOfBirth)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Gender</p>
+                      <p className="text-gray-900 font-medium">
+                        {selectedUser.gender ? selectedUser.gender.charAt(0).toUpperCase() + selectedUser.gender.slice(1) : 'Not provided'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Account Information</h3>
+                    <div>
+                      <p className="text-sm text-gray-600">Role</p>
+                      <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
+                        {selectedUser.role?.charAt(0).toUpperCase() + selectedUser.role?.slice(1) || 'Not provided'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Status</p>
+                      <span
+                        className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedUser.status === 'active'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                          }`}
+                      >
+                        {selectedUser.status?.charAt(0).toUpperCase() + selectedUser.status?.slice(1) || 'Not provided'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Institution Name</p>
+                      <p className="text-gray-900 font-medium">{selectedUser.institutionName || 'Not provided'}</p>
+                    </div>
+                    {(selectedUser.guardianName || selectedUser.guardianPhone) && (
+                      <>
+                        <div>
+                          <p className="text-sm text-gray-600">Guardian Name</p>
+                          <p className="text-gray-900 font-medium">{selectedUser.guardianName || 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Guardian Phone</p>
+                          <p className="text-gray-900 font-medium">{selectedUser.guardianPhone || 'Not provided'}</p>
+                        </div>
+                      </>
+                    )}
+                    <div>
+                      <p className="text-sm text-gray-600">Account Created</p>
+                      <p className="text-gray-900 font-medium">{formatDate(selectedUser.createdAt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Last Login</p>
+                      <p className="text-gray-900 font-medium">{formatLastLogin(selectedUser.lastLogin)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Login Count</p>
+                      <p className="text-gray-900 font-medium">{selectedUser.loginCount || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Verified</p>
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedUser.verified ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {selectedUser.verified ? '✓ Verified' : 'Not Verified'}
+                      </span>
+                    </div>
+                    {selectedUser.tags && selectedUser.tags.length > 0 && (
+                      <div>
+                        <p className="text-sm text-gray-600">Tags</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {selectedUser.tags.map((tag, idx) => (
+                            <span key={idx} className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedUser.notes && (
+                      <div>
+                        <p className="text-sm text-gray-600">Notes</p>
+                        <p className="text-gray-900 font-medium text-sm bg-yellow-50 p-2 rounded border border-yellow-200">{selectedUser.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                  {(selectedUser.address || selectedUser.city || selectedUser.state || selectedUser.zipCode || selectedUser.country) && (
+                    <div className="md:col-span-2 space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Address Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {selectedUser.address && <div><p className="text-sm text-gray-600">Address</p><p className="text-gray-900 font-medium">{selectedUser.address}</p></div>}
+                        {selectedUser.city && <div><p className="text-sm text-gray-600">City</p><p className="text-gray-900 font-medium">{selectedUser.city}</p></div>}
+                        {selectedUser.state && <div><p className="text-sm text-gray-600">State/Province</p><p className="text-gray-900 font-medium">{selectedUser.state}</p></div>}
+                        {selectedUser.zipCode && <div><p className="text-sm text-gray-600">Zip/Postal Code</p><p className="text-gray-900 font-medium">{selectedUser.zipCode}</p></div>}
+                        {selectedUser.country && <div><p className="text-sm text-gray-600">Country</p><p className="text-gray-900 font-medium">{selectedUser.country}</p></div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowUserDetails(false);
-                  setSelectedUser(null);
-                }}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
-              >
-                Close
-              </button>
+              {editUserMode ? (
+                <>
+                  <button
+                    onClick={() => setEditUserMode(false)}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveUser}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  >
+                    Save
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowUserDetails(false);
+                      setSelectedUser(null);
+                    }}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={handleEditUser}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -943,20 +1182,6 @@ const UserManagement = () => {
                 </div>
               </div>
             </div>
-            <div className="bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg shadow-lg p-4 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-100 text-sm font-medium">Viewers</p>
-                  <p className="text-3xl font-bold mt-1">{stats.viewers}</p>
-                </div>
-                <div className="bg-white bg-opacity-20 rounded-full p-3">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Additional Metrics Row */}
@@ -1033,10 +1258,10 @@ const UserManagement = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Roles</option>
-                  <option value="superadmin">Superadmin</option>
-                  <option value="admin">Admin</option>
-                  <option value="teacher">Teacher</option>
-                  <option value="viewer">Viewer</option>
+                  {isSuperadmin && <option value="superadmin">Superadmin</option>}
+                  {isSuperadmin && <option value="admin">Admin</option>}
+                  {isSuperadmin && <option value="hr">HR</option>}
+                  <option value="lecturer">Lecturer</option>
                 </select>
               </div>
               <div>
@@ -1332,88 +1557,6 @@ const UserManagement = () => {
                                     <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                                   </svg>
                                 </button>
-                                {quickActionsMenu === userId && (
-                                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                                    <div className="py-1">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenNotes(user);
-                                        }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                      >
-                                        📝 Edit Notes
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenTags(user);
-                                        }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                      >
-                                        🏷️ Manage Tags
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleViewActivity(user);
-                                        }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                      >
-                                        📊 View Activity
-                                      </button>
-                                      {!user.verified && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleVerifyUser(user._id || user.id);
-                                          }}
-                                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                        >
-                                          ✓ Verify User
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCompareUsers(user);
-                                        }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                      >
-                                        {comparingUsers.includes(userId) ? '✗ Remove from Compare' : '🔍 Compare'}
-                                      </button>
-                                      <hr className="my-1" />
-                                      {/* Management actions restricted to superadmins for admin/superadmin accounts */}
-                                      {(currentUser?.role === 'superadmin' || (user.role !== 'admin' && user.role !== 'superadmin')) && (
-                                        <>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleToggleStatus(user._id || user.id, user.status);
-                                              setQuickActionsMenu(null);
-                                            }}
-                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                          >
-                                            {user.status === 'active' ? '🚫 Disable' : '✅ Enable'}
-                                          </button>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setConfirmDialog({
-                                                message: `Are you sure you want to delete ${user.name}?`,
-                                                onConfirm: () => handleDelete(user._id || user.id),
-                                              });
-                                              setQuickActionsMenu(null);
-                                            }}
-                                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                          >
-                                            🗑️ Delete
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             </td>
                           </tr>
@@ -1896,13 +2039,58 @@ const UserManagement = () => {
         </div>
       )}
 
-      {/* Click outside to close quick actions menu */}
-      {quickActionsMenu && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setQuickActionsMenu(null)}
-        />
-      )}
+      {/* Centered actions popup (Delete & Modify) */}
+      {quickActionsMenu && (() => {
+        const actionUser = users.find((u) => (u._id || u.id) === quickActionsMenu);
+        if (!actionUser) return null;
+        return (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setQuickActionsMenu(null)}
+          >
+            <div
+              className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Actions</h3>
+              <p className="text-sm text-gray-500 mb-4">{actionUser.name}</p>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    setSelectedUser(actionUser);
+                    setShowUserDetails(true);
+                    setEditUserMode(false);
+                    setQuickActionsMenu(null);
+                  }}
+                  className="w-full px-4 py-3 text-left text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 transition-colors"
+                >
+                  ✏️ Modify
+                </button>
+                {(currentUser?.role === 'superadmin' || (actionUser.role !== 'admin' && actionUser.role !== 'superadmin')) && (
+                  <button
+                    onClick={() => {
+                      setConfirmDialog({
+                        message: `Are you sure you want to delete ${actionUser.name}?`,
+                        onConfirm: () => handleDelete(actionUser._id || actionUser.id),
+                      });
+                      setQuickActionsMenu(null);
+                    }}
+                    className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    🗑️ Delete
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setQuickActionsMenu(null)}
+                className="mt-4 w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

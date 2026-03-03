@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getClasses, enrollStudent } from '../api/api';
-import { computeAverageEmbedding } from '../ai/faceEngine';
+import { getSections, enrollStudent, enrollFace } from '../api/api';
 import FaceCamera from '../components/FaceCamera';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -8,57 +7,95 @@ import Loader from '../components/Loader';
 import Toast from '../components/Toast';
 
 const StudentEnrollment = () => {
-  const [classes, setClasses] = useState([]);
-  const [selectedClassId, setSelectedClassId] = useState('');
+  const [sections, setSections] = useState([]);
+  const [selectedSectionId, setSelectedSectionId] = useState('');
   const [formData, setFormData] = useState({
     fullName: '',
     rollNo: '',
+    dateOfBirth: '',
+    gender: '',
+    guardianName: '',
+    guardianPhone: '',
   });
-  const [samples, setSamples] = useState(null);
+  const [faceImages, setFaceImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
-    fetchClasses();
+    fetchSections();
   }, []);
 
-  const fetchClasses = async () => {
+  const fetchSections = async () => {
     try {
-      const response = await getClasses();
-      setClasses(response.classes || []);
+      const response = await getSections();
+      const all = response.sections || [];
+      const classSections = all.filter((s) => s.sectionType === 'class');
+      setSections(classSections);
     } catch (err) {
-      setToast({ message: 'Failed to load classes', type: 'error' });
+      setToast({ message: 'Failed to load sections', type: 'error' });
     }
   };
 
   const handleCapture = (capturedSamples) => {
-    const averageEmbedding = computeAverageEmbedding(capturedSamples);
-    setSamples(averageEmbedding);
+    // capturedSamples is an array of Base64-encoded JPEGs from FaceCamera
+    setFaceImages(capturedSamples || []);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedClassId) {
-      setToast({ message: 'Please select a class', type: 'error' });
+    if (!selectedSectionId) {
+      setToast({ message: 'Please select a section', type: 'error' });
       return;
     }
-    if (!samples) {
-      setToast({ message: 'Please capture face samples first', type: 'error' });
+    if (!formData.guardianName?.trim()) {
+      setToast({ message: 'Guardian name is required', type: 'error' });
+      return;
+    }
+    if (!formData.guardianPhone?.trim()) {
+      setToast({ message: 'Guardian phone is required', type: 'error' });
+      return;
+    }
+    if (!formData.dateOfBirth?.trim()) {
+      setToast({ message: 'Date of birth is required', type: 'error' });
+      return;
+    }
+    if (!formData.gender?.trim()) {
+      setToast({ message: 'Gender is required', type: 'error' });
+      return;
+    }
+    if (!faceImages || faceImages.length < 3) {
+      setToast({ message: 'Please capture at least 3 face photos', type: 'error' });
       return;
     }
 
     setLoading(true);
     try {
-      await enrollStudent({
+      const res = await enrollStudent({
         ...formData,
-        classId: selectedClassId,
-        embeddingFloatArray: samples,
-        embeddingVersion: 1,
+        sectionId: selectedSectionId,
       });
+      const student = res.student || {};
+      const studentId = student.id || student._id;
+
+      if (studentId && Array.isArray(faceImages)) {
+        for (const img of faceImages) {
+          try {
+            await enrollFace({
+              targetType: 'student',
+              targetId: studentId,
+              imageBase64: img,
+            });
+          } catch (err) {
+            // Continue trying remaining images but surface an error
+            console.error('Failed to enroll face image', err);
+          }
+        }
+      }
+
       setToast({ message: 'Student enrolled successfully', type: 'success' });
-      setFormData({ fullName: '', rollNo: '' });
-      setSamples(null);
-      setSelectedClassId('');
+      setFormData({ fullName: '', rollNo: '', dateOfBirth: '', gender: '', guardianName: '', guardianPhone: '' });
+      setFaceImages([]);
+      setSelectedSectionId('');
     } catch (err) {
       setToast({ message: err.error || 'Failed to enroll student', type: 'error' });
     } finally {
@@ -86,18 +123,18 @@ const StudentEnrollment = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Class
+                    Section (Class)
                   </label>
                   <select
-                    value={selectedClassId}
-                    onChange={(e) => setSelectedClassId(e.target.value)}
+                    value={selectedSectionId}
+                    onChange={(e) => setSelectedSectionId(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-md"
                     required
                   >
-                    <option value="">Select Class</option>
-                    {classes.map((classItem) => (
-                      <option key={classItem._id || classItem.id} value={classItem._id || classItem.id}>
-                        {classItem.className} - {classItem.subject}
+                    <option value="">Select Section</option>
+                    {sections.map((sec) => (
+                      <option key={sec._id || sec.id} value={sec._id || sec.id}>
+                        {sec.sectionName}
                       </option>
                     ))}
                   </select>
@@ -110,7 +147,7 @@ const StudentEnrollment = () => {
                     type="text"
                     value={formData.fullName}
                     onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
                   />
                 </div>
@@ -122,17 +159,82 @@ const StudentEnrollment = () => {
                     type="text"
                     value={formData.rollNo}
                     onChange={(e) => setFormData({ ...formData, rollNo: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
                   />
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Date of Birth <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Gender <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.gender}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      required
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-600">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Guardian Information</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Guardian Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.guardianName}
+                        onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        placeholder="Full name of parent/guardian"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Guardian Phone <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={formData.guardianPhone}
+                        onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        placeholder="Contact number"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Face Capture Status
                   </label>
                   <div className="px-4 py-2 border border-gray-300 rounded-md bg-gray-50">
-                    {samples ? (
-                      <span className="text-green-600">✓ Face captured (5 samples)</span>
+                    {faceImages && faceImages.length > 0 ? (
+                      <span className="text-green-600">
+                        ✓ {faceImages.length} face photo{faceImages.length > 1 ? 's' : ''} captured
+                      </span>
                     ) : (
                       <span className="text-gray-500">No samples captured yet</span>
                     )}
@@ -140,7 +242,7 @@ const StudentEnrollment = () => {
                 </div>
                 <button
                   type="submit"
-                  disabled={loading || !samples}
+                  disabled={loading || !faceImages || faceImages.length < 3}
                   className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
                 >
                   {loading ? 'Enrolling...' : 'Enroll Student'}
@@ -150,16 +252,29 @@ const StudentEnrollment = () => {
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <h2 className="text-xl font-bold mb-4">Face Capture</h2>
               <p className="text-sm text-gray-600 mb-4">
-                Position your face in the camera and capture 5 samples. The system will create an average embedding.
-                <strong className="block mt-2 text-red-600">
-                  Note: No photos are stored. Only face embeddings are saved.
-                </strong>
+                Position the student&apos;s face in the camera and capture 3–5 photos.
+                Use good lighting, center the face, and look straight at the camera.
               </p>
               <FaceCamera
                 onCapture={handleCapture}
                 onError={(error) => setToast({ message: error, type: 'error' })}
                 samplesRequired={5}
               />
+              {faceImages && faceImages.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Captured Photos</p>
+                  <div className="flex flex-wrap gap-2">
+                    {faceImages.map((img, idx) => (
+                      <img
+                        key={idx}
+                        src={img}
+                        alt={`Face sample ${idx + 1}`}
+                        className="w-16 h-16 rounded object-cover border"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </main>
@@ -169,4 +284,3 @@ const StudentEnrollment = () => {
 };
 
 export default StudentEnrollment;
-

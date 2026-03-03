@@ -9,35 +9,59 @@ const Sidebar = () => {
 
   const adminLinks = [
     { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
-    { path: '/admin/sections', label: 'Manage Sections', icon: '📂' },
-    { path: '/admin/users', label: 'Users', icon: '👥' },
-    { path: '/admin/classes', label: 'Classes', icon: '📚' },
-    { path: '/admin/calendar', label: 'Calendar', icon: '📅' },
+    { path: '/admin/users', label: 'Manage Users', icon: '👥' },
+    { path: '/admin/sections', label: 'My Sections', icon: '📂' },
+    { path: '/admin/history', label: 'History', icon: '📜' },
     { path: '/admin/reports', label: 'Reports', icon: '📈' },
+  ];
+
+  const hrLinks = [
+    { path: '/hr/dashboard', label: 'Dashboard', icon: '📊' },
+    { path: '/hr/enroll-employee', label: 'Enroll Employee', icon: '👤' },
+    { path: '/hr/face-scan', label: 'Employee Face Scan', icon: '📷' },
+    { path: '/hr/attendance', label: 'Live Attendance', icon: '📹' },
+    { path: '/hr/history', label: 'History', icon: '📜' },
+    { path: '/hr/reports', label: 'Reports', icon: '📈' },
+  ];
+
+  const superadminLinks = [
+    { path: '/superadmin/system-settings', label: 'System Settings', icon: '⚙️' },
+    { path: '/superadmin/admin-management', label: 'Admin Management', icon: '🛡️' },
+    { path: '/superadmin/audit-logs', label: 'Audit Logs', icon: '📋' },
+    { path: '/superadmin/danger-zone', label: 'Danger Zone', icon: '⚠️' },
+    { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
+    { path: '/admin/users', label: 'Manage Users', icon: '👥' },
+    { path: '/admin/sections', label: 'My Sections', icon: '📂' },
+    { path: '/admin/calendar', label: 'Calendar', icon: '📅' },
+    { path: '/admin/enroll-employee', label: 'Enroll Employee', icon: '👤' },
+    { path: '/admin/history', label: 'History', icon: '📜' },
+    { path: '/admin/reports', label: 'Reports', icon: '📈' },
+    { path: '/lecturer/dashboard', label: 'Lecturer Dashboard', icon: '📚' },
+    { path: '/lecturer/enroll', label: 'Enroll Students', icon: '➕' },
+    { path: '/lecturer/attendance', label: 'Live Attendance', icon: '📹' },
+    { path: '/lecturer/history', label: 'Lecturer History', icon: '📜' },
+    { path: '/lecturer/reports', label: 'Lecturer Reports', icon: '📈' },
+    { path: '/hr/dashboard', label: 'HR Dashboard', icon: '🏢' },
+    { path: '/hr/enroll-employee', label: 'HR Enroll Employee', icon: '👤' },
+    { path: '/hr/face-scan', label: 'HR Face Scan', icon: '📷' },
   ];
 
   const lecturerLinks = [
     { path: '/lecturer/dashboard', label: 'Dashboard', icon: '📊' },
-    { path: '/lecturer/classes', label: 'My Classes', icon: '📚' },
     { path: '/lecturer/enroll', label: 'Enroll Students', icon: '➕' },
     { path: '/lecturer/attendance', label: 'Live Attendance', icon: '📹' },
     { path: '/lecturer/history', label: 'History', icon: '📜' },
-    { path: '/lecturer/calendar', label: 'Calendar', icon: '📅' },
     { path: '/lecturer/reports', label: 'Reports', icon: '📈' },
   ];
 
-  const viewerLinks = [
-    { path: '/viewer/history', label: 'Attendance History', icon: '📜' },
-    { path: '/viewer/calendar', label: 'Calendar', icon: '📅' },
-    { path: '/viewer/reports', label: 'Reports', icon: '📈' },
-  ];
-
   const links =
-    user?.role === 'admin' || user?.role === 'superadmin'
-      ? adminLinks
-      : user?.role === 'lecturer'
-        ? lecturerLinks
-        : viewerLinks;
+    user?.role === 'superadmin'
+      ? superadminLinks
+      : user?.role === 'admin'
+        ? adminLinks
+        : user?.role === 'hr'
+          ? hrLinks
+          : lecturerLinks;
 
   return (
     <aside className="w-64 bg-gradient-to-b from-gray-900 to-gray-800 text-white min-h-screen p-6 flex flex-col shadow-2xl">

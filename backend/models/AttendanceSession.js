@@ -7,10 +7,15 @@ const attendanceSessionSchema = new mongoose.Schema(
       required: [true, 'Session ID is required'],
       unique: true,
     },
-    classId: {
+    sectionId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Class',
-      required: [true, 'Class is required'],
+      ref: 'Section',
+      required: [true, 'Section is required'],
+    },
+    classSessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ClassSession',
+      default: null,
     },
     lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -56,11 +61,9 @@ const attendanceSessionSchema = new mongoose.Schema(
   }
 );
 
-// Indexes for queries
-attendanceSessionSchema.index({ classId: 1, date: -1 });
+attendanceSessionSchema.index({ sectionId: 1, date: -1 });
+attendanceSessionSchema.index({ classSessionId: 1, date: -1 });
 attendanceSessionSchema.index({ lecturerId: 1, date: -1 });
 attendanceSessionSchema.index({ date: -1 });
-// Note: sessionId index is automatically created by unique: true, no need to define it explicitly
 
 module.exports = mongoose.model('AttendanceSession', attendanceSessionSchema);
-
