@@ -291,7 +291,7 @@ const UserManagement = () => {
           return user && (user.role === 'admin' || user.role === 'superadmin');
         });
         if (restrictedUsers) {
-          setToast({ message: 'Access denied. You cannot perform bulk actions on Admin or Superadmin accounts.', type: 'error' });
+          setToast({ message: 'Access denied. You cannot perform bulk actions on Office Admin or Superadmin accounts.', type: 'error' });
           return;
         }
       }
@@ -336,7 +336,7 @@ const UserManagement = () => {
   const getRoleDistributionData = () => {
     const data = [{ name: 'Lecturer', value: stats.lecturers, color: '#3b82f6' }];
     if (currentUser?.role === 'superadmin') {
-      data.unshift({ name: 'Admin', value: stats.admins, color: '#8b5cf6' });
+      data.unshift({ name: 'Office Admin', value: stats.admins, color: '#8b5cf6' });
       data.unshift({ name: 'Superadmin', value: stats.superadmins, color: '#ec4899' });
     }
     return data;
@@ -812,8 +812,8 @@ const UserManagement = () => {
                         <option value="lecturer">Lecturer</option>
                         {isSuperadmin && (
                           <>
-                            <option value="admin">Admin</option>
-                            <option value="hr">HR</option>
+                            <option value="admin">Office Admin</option>
+                            <option value="hr">Supervisor</option>
                             <option value="superadmin">Superadmin</option>
                           </>
                         )}
@@ -948,7 +948,7 @@ const UserManagement = () => {
                     <div>
                       <p className="text-sm text-gray-600">Role</p>
                       <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
-                        {selectedUser.role?.charAt(0).toUpperCase() + selectedUser.role?.slice(1) || 'Not provided'}
+                        {selectedUser.role === 'admin' ? 'Office Admin' : selectedUser.role === 'hr' ? 'Supervisor' : (selectedUser.role?.charAt(0).toUpperCase() + selectedUser.role?.slice(1) || 'Not provided')}
                       </span>
                     </div>
                     <div>
@@ -1159,7 +1159,7 @@ const UserManagement = () => {
             <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-4 text-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-purple-100 text-sm font-medium">Admins</p>
+                  <p className="text-purple-100 text-sm font-medium">Office Admins</p>
                   <p className="text-3xl font-bold mt-1">{stats.admins}</p>
                 </div>
                 <div className="bg-white bg-opacity-20 rounded-full p-3">
@@ -1259,8 +1259,8 @@ const UserManagement = () => {
                 >
                   <option value="all">All Roles</option>
                   {isSuperadmin && <option value="superadmin">Superadmin</option>}
-                  {isSuperadmin && <option value="admin">Admin</option>}
-                  {isSuperadmin && <option value="hr">HR</option>}
+                  {isSuperadmin && <option value="admin">Office Admin</option>}
+                  {isSuperadmin && <option value="hr">Supervisor</option>}
                   <option value="lecturer">Lecturer</option>
                 </select>
               </div>
@@ -1500,7 +1500,7 @@ const UserManagement = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                                {user.role}
+                                {user.role === 'admin' ? 'Office Admin' : user.role === 'hr' ? 'Supervisor' : user.role}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -1672,7 +1672,7 @@ const UserManagement = () => {
                           <p className="text-sm text-gray-600 mb-2 truncate">{user.email}</p>
                           <div className="flex items-center justify-between mb-4">
                             <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {user.role}
+                              {user.role === 'admin' ? 'Office Admin' : user.role === 'hr' ? 'Supervisor' : user.role}
                             </span>
                             {user.phone && (
                               <span className="text-xs text-gray-500">📞 {user.phone}</span>
@@ -2004,7 +2004,7 @@ const UserManagement = () => {
                           <span className="text-gray-600">Email:</span> {user.email}
                         </div>
                         <div>
-                          <span className="text-gray-600">Role:</span> {user.role}
+                          <span className="text-gray-600">Role:</span> {user.role === 'admin' ? 'Office Admin' : user.role === 'hr' ? 'Supervisor' : user.role}
                         </div>
                         <div>
                           <span className="text-gray-600">Status:</span> {user.status}

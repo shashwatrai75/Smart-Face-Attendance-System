@@ -26,7 +26,7 @@ const Sidebar = () => {
 
   const superadminLinks = [
     { path: '/superadmin/system-settings', label: 'System Settings', icon: '⚙️' },
-    { path: '/superadmin/admin-management', label: 'Admin Management', icon: '🛡️' },
+    { path: '/superadmin/admin-management', label: 'Office Admin Management', icon: '🛡️' },
     { path: '/superadmin/audit-logs', label: 'Audit Logs', icon: '📋' },
     { path: '/superadmin/danger-zone', label: 'Danger Zone', icon: '⚠️' },
     { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
@@ -41,9 +41,9 @@ const Sidebar = () => {
     { path: '/lecturer/attendance', label: 'Live Attendance', icon: '📹' },
     { path: '/lecturer/history', label: 'Lecturer History', icon: '📜' },
     { path: '/lecturer/reports', label: 'Lecturer Reports', icon: '📈' },
-    { path: '/hr/dashboard', label: 'HR Dashboard', icon: '🏢' },
-    { path: '/hr/enroll-employee', label: 'HR Enroll Employee', icon: '👤' },
-    { path: '/hr/face-scan', label: 'HR Face Scan', icon: '📷' },
+    { path: '/hr/dashboard', label: 'Supervisor Dashboard', icon: '🏢' },
+    { path: '/hr/enroll-employee', label: 'Supervisor Enroll Employee', icon: '👤' },
+    { path: '/hr/face-scan', label: 'Supervisor Face Scan', icon: '📷' },
   ];
 
   const lecturerLinks = [
