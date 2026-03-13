@@ -31,7 +31,7 @@ const createUser = async (req, res, next) => {
 
     // Role restrictions: Only superadmin can create admins, superadmins, or HR
     if (role && (role === 'admin' || role === 'superadmin' || role === 'hr') && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Only Superadmins can create Admin, Superadmin, or HR users' });
+      return res.status(403).json({ error: 'Only Superadmins can create Office Admin, Superadmin, or Supervisor users' });
     }
 
     const userData = {
@@ -120,7 +120,7 @@ const updateUserStatus = async (req, res, next) => {
 
     // Role restrictions: Admins cannot update other admins or superadmins
     if ((userToUpdate.role === 'admin' || userToUpdate.role === 'superadmin') && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Access denied. You cannot modify Admin or Superadmin status.' });
+      return res.status(403).json({ error: 'Access denied. You cannot modify Office Admin or Superadmin status.' });
     }
 
     const user = await User.findByIdAndUpdate(
@@ -172,12 +172,12 @@ const updateUser = async (req, res, next) => {
 
     // Role restrictions: Admins cannot modify admin or superadmin accounts
     if ((userToUpdate.role === 'admin' || userToUpdate.role === 'superadmin') && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Access denied. You cannot modify Admin or Superadmin accounts.' });
+      return res.status(403).json({ error: 'Access denied. You cannot modify Office Admin or Superadmin accounts.' });
     }
 
     // Only superadmin can change admin/superadmin roles
     if (role && (role === 'admin' || role === 'superadmin') && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Only Superadmins can assign Admin or Superadmin roles' });
+      return res.status(403).json({ error: 'Only Superadmins can assign Office Admin or Superadmin roles' });
     }
 
     // Check email uniqueness if changing
@@ -243,7 +243,7 @@ const deleteUser = async (req, res, next) => {
 
     // Role restrictions: Admins cannot delete other admins or superadmins
     if ((userToDelete.role === 'admin' || userToDelete.role === 'superadmin') && req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Access denied. You cannot delete Admin or Superadmin accounts.' });
+      return res.status(403).json({ error: 'Access denied. You cannot delete Office Admin or Superadmin accounts.' });
     }
 
     await User.findByIdAndDelete(id);

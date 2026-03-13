@@ -30,7 +30,7 @@ const Register = () => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // Only Superadmin can assign Admin, HR, or Superadmin roles
+  // Only Superadmin can assign Office Admin, Supervisor, or Superadmin roles
   const isSuperadmin =
     currentUser?.role === 'superadmin' ||
     (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('user') || '{}')?.role === 'superadmin');
@@ -289,8 +289,8 @@ const Register = () => {
                       <option value="lecturer">Lecturer</option>
                       {isSuperadmin && (
                         <>
-                          <option value="admin">Admin</option>
-                          <option value="hr">HR</option>
+                          <option value="admin">Office Admin</option>
+                          <option value="hr">Supervisor</option>
                           <option value="superadmin">Superadmin</option>
                         </>
                       )}

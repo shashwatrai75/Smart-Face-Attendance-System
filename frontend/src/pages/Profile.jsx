@@ -203,7 +203,7 @@ const Profile = () => {
                         displayUser?.role
                       )}`}
                     >
-                      {displayUser?.role?.charAt(0).toUpperCase() + displayUser?.role?.slice(1) || 'User'}
+                      {displayUser?.role === 'admin' ? 'Office Admin' : displayUser?.role === 'hr' ? 'Supervisor' : (displayUser?.role?.charAt(0).toUpperCase() + displayUser?.role?.slice(1) || 'User')}
                     </span>
                   </div>
                 </div>

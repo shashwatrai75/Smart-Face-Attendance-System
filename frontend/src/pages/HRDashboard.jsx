@@ -22,7 +22,7 @@ const HRDashboard = () => {
           <div className="mb-8">
             <div className="flex flex-wrap items-center gap-3 mb-2">
               <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                HR Dashboard
+                Supervisor Dashboard
               </h1>
               {departmentName && (
                 <span className="text-lg font-semibold text-gray-600 dark:text-gray-400">
@@ -32,7 +32,7 @@ const HRDashboard = () => {
             </div>
             {!departmentName && (
               <p className="text-amber-600 dark:text-amber-400 text-sm font-medium">
-                No department assigned. Contact admin to assign your department.
+                No department assigned. Contact office admin to assign your department.
               </p>
             )}
             <p className="text-gray-600 dark:text-gray-400 mt-1">
