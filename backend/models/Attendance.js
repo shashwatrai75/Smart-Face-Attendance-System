@@ -15,7 +15,7 @@ const attendanceSchema = new mongoose.Schema(
     lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Lecturer is required'],
+      required: [true, 'Session host is required'],
     },
     date: {
       type: String,

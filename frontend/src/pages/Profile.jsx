@@ -133,6 +133,7 @@ const Profile = () => {
   const getRoleBadgeColor = (role) => {
     const colors = {
       admin: 'bg-purple-100 text-purple-800',
+      member: 'bg-blue-100 text-blue-800',
       lecturer: 'bg-blue-100 text-blue-800',
       hr: 'bg-indigo-100 text-indigo-800',
       superadmin: 'bg-pink-100 text-pink-800',

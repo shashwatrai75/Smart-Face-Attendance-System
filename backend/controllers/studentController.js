@@ -5,6 +5,11 @@ const Attendance = require('../models/Attendance');
 const AuditLog = require('../models/AuditLog');
 const ExcelJS = require('exceljs');
 const logger = require('../utils/logger');
+const {
+  sendSmsTwilio,
+  isSmsFullyConfigured,
+  buildStudentEnrolledGuardianMessage,
+} = require('../utils/sms');
 
 const enrollStudent = async (req, res, next) => {
   try {
@@ -50,11 +55,24 @@ const enrollStudent = async (req, res, next) => {
         .json({ error: 'Roll number already exists in this section' });
     }
 
+    const normalizedGuardianPhone = String(guardianPhone || '').trim();
+    const existingGuardian = await Student.findOne({ guardianPhone: normalizedGuardianPhone }).select('_id');
+    if (existingGuardian) {
+      try {
+        const body = 'Student registration not allowed: this guardian phone number is already used. Please contact the admin.';
+        const result = await sendSmsTwilio({ to: normalizedGuardianPhone, body });
+        if (result?.skipped) logger.warn(`Registration SMS skipped (${result.reason}) for ${normalizedGuardianPhone}`);
+      } catch (err) {
+        logger.warn(`Registration SMS failed for ${normalizedGuardianPhone}: ${err.message}`);
+      }
+      return res.status(400).json({ error: 'Student registration not allowed: guardian phone already used' });
+    }
+
     const student = await Student.create({
       fullName,
       rollNo,
       guardianName,
-      guardianPhone,
+      guardianPhone: normalizedGuardianPhone,
       dateOfBirth,
       gender,
       sectionId,
@@ -65,6 +83,16 @@ const enrollStudent = async (req, res, next) => {
       action: 'ENROLL_STUDENT',
       metadata: { studentId: student._id, sectionId, rollNo },
     });
+
+    if (isSmsFullyConfigured() && normalizedGuardianPhone) {
+      try {
+        const body = buildStudentEnrolledGuardianMessage(student, section.sectionName || 'class');
+        const result = await sendSmsTwilio({ to: normalizedGuardianPhone, body });
+        if (result?.skipped) logger.warn(`Enrollment SMS skipped (${result.reason}) for guardian`);
+      } catch (err) {
+        logger.warn(`Enrollment SMS failed: ${err.message}`);
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -97,7 +125,7 @@ const getStudents = async (req, res, next) => {
 
     if (sectionId) {
       query.sectionId = sectionId;
-    } else if (req.user.role === 'lecturer' && req.user.sectionId) {
+    } else if (req.user.role === 'member' && req.user.sectionId) {
       query.sectionId = req.user.sectionId;
     }
 
@@ -230,7 +258,7 @@ const getStudentAttendanceHistory = async (req, res, next) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    if (req.user.role === 'lecturer') {
+    if (req.user.role === 'member') {
       const teachesSession = await ClassSession.findOne({ sectionId: student.sectionId, teacherId: req.user._id });
       const userSectionMatch = req.user.sectionId && req.user.sectionId.toString() === student.sectionId.toString();
       if (!teachesSession && !userSectionMatch) {

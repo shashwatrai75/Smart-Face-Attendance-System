@@ -6,6 +6,7 @@ import {
   getStudents,
   startSession,
   markAttendance,
+  heartbeatSession,
   endSession as endSessionApi,
   recordCheckIn,
   verifyFace,
@@ -34,10 +35,10 @@ const LiveAttendance = () => {
   const isClassSessionMode = sectionType === 'class' && sectionIdParam && classSessionIdParam;
   const isClassSectionMode = sectionType === 'class' && sectionIdParam && !classSessionIdParam;
 
-  // Lecturers may only use class attendance; block department (check-in) mode
+  // Members may only use class attendance; block department (check-in) mode
   useEffect(() => {
-    if (user?.role === 'lecturer' && isDepartmentMode) {
-      navigate('/lecturer/dashboard', { replace: true });
+    if (user?.role === 'member' && isDepartmentMode) {
+      navigate('/member/dashboard', { replace: true });
     }
   }, [user?.role, isDepartmentMode, navigate]);
 
@@ -277,6 +278,19 @@ const LiveAttendance = () => {
 
     setIsScanning(true);
     try {
+      if (!isDepartmentMode && isOnline && sessionId) {
+        try {
+          await heartbeatSession(sessionId);
+        } catch (err) {
+          const msg = err?.error || err?.response?.data?.error || '';
+          if (String(msg).toLowerCase().includes('session')) {
+            setToast({ message: msg || 'Session is no longer active', type: 'warning' });
+            await endSession();
+            return;
+          }
+        }
+      }
+
       const sectionIdForVerify = isDepartmentMode
         ? sectionIdParam
         : resolvedSectionId || sectionIdParam || selectedSectionId;
@@ -330,11 +344,13 @@ const LiveAttendance = () => {
   }, [
     isSessionActive,
     cameraReady,
+    isOnline,
     isDepartmentMode,
     sectionIdParam,
     resolvedSectionId,
     selectedSectionId,
     recordCheckIn,
+    sessionId,
   ]);
 
   const handleScanClick = () => {
@@ -431,6 +447,13 @@ const LiveAttendance = () => {
           type: finalStatus === 'absent' ? 'error' : isLate ? 'warning' : 'success',
         });
       } catch (err) {
+        const msg = err?.error || err?.response?.data?.error || '';
+        const lower = String(msg).toLowerCase();
+        if (lower.includes('session not found') || lower.includes('session is not active')) {
+          setToast({ message: 'Session ended due to inactivity. Please check Attendance History.', type: 'warning' });
+          await endSession();
+          return;
+        }
         await saveAttendanceOffline(sessionId, resolvedSectionId, studentId, 'present', time);
         setToast({ message: `${fullName} saved offline`, type: 'warning' });
       }
@@ -505,7 +528,7 @@ const LiveAttendance = () => {
     });
 
     setTimeout(() => {
-      navigate('/lecturer/dashboard');
+      navigate('/member/dashboard');
     }, 1500);
   };
 

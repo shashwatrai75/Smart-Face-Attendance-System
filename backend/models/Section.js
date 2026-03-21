@@ -39,6 +39,11 @@ const sectionSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    parentSectionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Section',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -46,5 +51,6 @@ const sectionSchema = new mongoose.Schema(
 );
 
 sectionSchema.index({ sectionType: 1 });
+sectionSchema.index({ parentSectionId: 1 });
 
 module.exports = mongoose.model('Section', sectionSchema);

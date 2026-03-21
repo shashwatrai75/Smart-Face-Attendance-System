@@ -29,6 +29,6 @@ router.delete('/:id', authorize('superadmin'), deleteSection);
 router.post('/:id/members', authorize('admin', 'superadmin', 'hr'), addSectionMember);
 router.delete('/:id/members/:userId', authorize('admin', 'superadmin'), removeSectionMember);
 router.get('/:id/class-sessions', getClassSessionsBySection);
-router.post('/:id/class-sessions', authorize('admin', 'superadmin', 'lecturer'), createClassSession);
+router.post('/:id/class-sessions', authorize('admin', 'superadmin', 'member'), createClassSession);
 
 module.exports = router;

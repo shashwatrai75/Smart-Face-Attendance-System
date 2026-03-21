@@ -31,7 +31,7 @@ const About = () => {
     {
       title: 'Role-Based Access',
       icon: '🔐',
-      description: 'Office Admin, Lecturer, and Viewer roles with granular permissions.',
+      description: 'Office Admin, Member, and Viewer roles with granular permissions.',
     },
     {
       title: 'Calendar & Analytics',

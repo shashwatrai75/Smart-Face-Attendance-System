@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { notifyEmployeeNoCheckInSMS } from '../api/api';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import Toast from '../components/Toast';
 
 const DepartmentBadge = ({ name }) => (
   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
@@ -12,10 +15,35 @@ const DepartmentBadge = ({ name }) => (
 const HRDashboard = () => {
   const { user } = useAuth();
   const departmentName = user?.department?.name || null;
+  const [toast, setToast] = useState(null);
+  const [smsBusy, setSmsBusy] = useState(false);
+
+  const handleNoCheckInSms = async () => {
+    if (
+      !window.confirm(
+        'Send SMS to employees who have not checked in today? (Uses their profile phone number and Twilio.)'
+      )
+    ) {
+      return;
+    }
+    setSmsBusy(true);
+    try {
+      const res = await notifyEmployeeNoCheckInSMS({});
+      setToast({
+        message: `SMS: ${res.sent} sent, ${res.failed} failed, ${res.skipped} skipped (no phone). ${res.hitCap ? 'Cap reached.' : ''}`,
+        type: res.sent > 0 ? 'success' : 'error',
+      });
+    } catch (err) {
+      setToast({ message: err?.error || 'SMS request failed', type: 'error' });
+    } finally {
+      setSmsBusy(false);
+    }
+  };
 
   return (
     <div className="min-h-screen page-bg">
       <Navbar />
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <div className="flex">
         <Sidebar />
         <main className="flex-1 p-8">
@@ -105,6 +133,27 @@ const HRDashboard = () => {
               <h2 className="text-xl font-bold text-gray-800 dark:text-white">Reports</h2>
               <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Attendance and summary reports</p>
             </Link>
+          </div>
+
+          <div className="mt-8 p-5 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 max-w-3xl">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Employee SMS (no check-in)</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              Sends a message to each department member&apos;s <strong>phone number on file</strong> if they did not
+              check in today (server date). Admins can use the same API with an optional department filter.
+            </p>
+            <button
+              type="button"
+              disabled={smsBusy || !departmentName}
+              onClick={handleNoCheckInSms}
+              className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {smsBusy ? 'Sending…' : 'Notify employees (no check-in today)'}
+            </button>
+            {!departmentName && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+                Assign a department to your account to enable this action.
+              </p>
+            )}
           </div>
         </main>
       </div>

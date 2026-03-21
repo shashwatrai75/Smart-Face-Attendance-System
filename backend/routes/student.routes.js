@@ -12,8 +12,8 @@ const {
 router.use(authenticate);
 router.use(apiLimiter);
 
-router.post('/enroll', authorize('lecturer', 'admin', 'superadmin'), enrollStudent);
-router.get('/', authorize('lecturer', 'admin', 'superadmin'), getStudents);
+router.post('/enroll', authorize('member', 'admin', 'superadmin'), enrollStudent);
+router.get('/', authorize('member', 'admin', 'superadmin'), getStudents);
 // Embedding-based endpoint removed; face recognition now uses /api/face/verify
 router.delete('/:id/delete-data', authorize('admin', 'superadmin'), deleteStudentData);
 

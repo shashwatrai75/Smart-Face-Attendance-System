@@ -49,7 +49,9 @@ const Reports = () => {
   const fetchSections = async () => {
     try {
       const response = await getSections();
-      setSections(response.sections || []);
+      const all = response.sections || [];
+      // Include all sections (class and department)
+      setSections(all);
     } catch (err) {
       console.error('Failed to load sections:', err);
     }
@@ -172,22 +174,22 @@ const Reports = () => {
               className="grid grid-cols-1 gap-4 md:grid-cols-5"
             >
               <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Section
-                  </label>
-                  <select
-                    value={filters.sectionId}
-                    onChange={(e) => handleFilterChange('sectionId', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">All Sections</option>
-                    {sections.map((sec) => (
-                      <option key={sec._id || sec.id} value={sec._id || sec.id}>
-                        {sec.sectionName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Section
+                </label>
+                <select
+                  value={filters.sectionId}
+                  onChange={(e) => handleFilterChange('sectionId', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">All Sections</option>
+                  {sections.map((sec) => (
+                    <option key={sec._id || sec.id} value={sec._id || sec.id}>
+                      {sec.sectionName}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   From Date
@@ -220,50 +222,50 @@ const Reports = () => {
                 </button>
               </div>
               <div className="flex items-end gap-2">
-                  <button
-                    onClick={() => handleExport('xlsx')}
-                    disabled={loading || !filters.sectionId}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400 text-sm"
-                  >
-                    Export Excel
-                  </button>
-                  <button
-                    onClick={() => handleExport('csv')}
-                    disabled={loading || !filters.sectionId}
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400 text-sm"
-                  >
-                    Export CSV
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleExport('xlsx')}
+                  disabled={loading || !filters.sectionId}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400 text-sm"
+                >
+                  Export Excel
+                </button>
+                <button
+                  onClick={() => handleExport('csv')}
+                  disabled={loading || !filters.sectionId}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400 text-sm"
+                >
+                  Export CSV
+                </button>
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-4">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Sections</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-2">
-                      {summary.totalSections}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-blue-100 rounded-full">
-                    <svg
-                      className="w-8 h-8 text-blue-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                      />
-                    </svg>
-                  </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Sections</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">
+                    {summary.totalSections}
+                  </p>
+                </div>
+                <div className="p-3 bg-blue-100 rounded-full">
+                  <svg
+                    className="w-8 h-8 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                    />
+                  </svg>
                 </div>
               </div>
+            </div>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <div>
@@ -315,16 +317,62 @@ const Reports = () => {
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Sessions Conducted</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-2">
-                      {summary.totalSessions}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-purple-100 rounded-full">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Sessions Conducted</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">
+                    {summary.totalSessions}
+                  </p>
+                </div>
+                <div className="p-3 bg-purple-100 rounded-full">
+                  <svg
+                    className="w-8 h-8 text-purple-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-2">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Attendance per Section
+              </h3>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="sectionName"
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                      interval={0}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="presentCount" fill="#10b981" name="Present" />
+                    <Bar dataKey="absentCount" fill="#ef4444" name="Absent" />
+                    <Bar dataKey="lateCount" fill="#f59e0b" name="Late" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-gray-500">
+                  <div className="text-center">
                     <svg
-                      className="w-8 h-8 text-purple-600"
+                      className="w-12 h-12 mx-auto mb-4 text-gray-400"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -333,60 +381,14 @@ const Reports = () => {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                       />
                     </svg>
+                    <p>No data available</p>
                   </div>
                 </div>
-              </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-2">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Attendance per Section
-                </h3>
-                {chartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="sectionName"
-                        angle={-45}
-                        textAnchor="end"
-                        height={100}
-                        interval={0}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="presentCount" fill="#10b981" name="Present" />
-                      <Bar dataKey="absentCount" fill="#ef4444" name="Absent" />
-                      <Bar dataKey="lateCount" fill="#f59e0b" name="Late" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-[300px] text-gray-500">
-                    <div className="text-center">
-                      <svg
-                        className="w-12 h-12 mx-auto mb-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                        />
-                      </svg>
-                      <p>No data available</p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
+            </div>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>

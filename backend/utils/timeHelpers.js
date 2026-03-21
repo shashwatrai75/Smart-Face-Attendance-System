@@ -23,8 +23,16 @@ const nowMinutes = () => {
 
 /**
  * Get today's date in YYYY-MM-DD.
+ * Uses TZ env var if set (e.g. Asia/Kolkata) so server date matches org timezone.
  */
-const todayDate = () => new Date().toISOString().split('T')[0];
+const todayDate = () => {
+  const tz = process.env.TZ || 'UTC';
+  try {
+    return new Date().toLocaleDateString('en-CA', { timeZone: tz }); // en-CA yields YYYY-MM-DD
+  } catch {
+    return new Date().toISOString().split('T')[0];
+  }
+};
 
 /**
  * Compare date strings YYYY-MM-DD. Returns -1, 0, or 1.
