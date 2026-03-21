@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const Attendance = require('../models/Attendance');
@@ -5,6 +6,13 @@ const Section = require('../models/Section');
 const Student = require('../models/Student');
 const SectionMember = require('../models/SectionMember');
 const logger = require('../utils/logger');
+const { todayDate } = require('../utils/timeHelpers');
+const {
+  isSmsFullyConfigured,
+  sendSmsTwilio,
+  buildAbsentGuardianMessage,
+  buildLinkedStudentAccountGuardianMessage,
+} = require('../utils/sms');
 
 const createUser = async (req, res, next) => {
   try {
@@ -46,7 +54,7 @@ const createUser = async (req, res, next) => {
       country,
       dateOfBirth: dateOfBirth || undefined,
       gender: gender || '',
-      role: role || 'lecturer',
+      role: role || 'member',
       institutionName,
       image,
       status: 'active',
@@ -66,6 +74,23 @@ const createUser = async (req, res, next) => {
       action: 'CREATE_USER',
       metadata: { createdUserId: user._id, email: user.email, role: user.role },
     });
+
+    if (linkedStudentId && mongoose.Types.ObjectId.isValid(String(linkedStudentId))) {
+      try {
+        const stu = await Student.findById(linkedStudentId).populate('sectionId', 'sectionName');
+        if (stu?.guardianPhone && isSmsFullyConfigured()) {
+          const sectionName =
+            stu.sectionId && typeof stu.sectionId === 'object' && stu.sectionId.sectionName
+              ? stu.sectionId.sectionName
+              : (await Section.findById(stu.sectionId).select('sectionName'))?.sectionName || 'class';
+          const body = buildLinkedStudentAccountGuardianMessage(user, stu, sectionName);
+          const result = await sendSmsTwilio({ to: stu.guardianPhone, body });
+          if (result?.skipped) logger.warn(`Linked-student account SMS skipped (${result.reason})`);
+        }
+      } catch (err) {
+        logger.warn(`Linked-student account SMS error: ${err.message}`);
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -273,7 +298,7 @@ const getStats = async (req, res, next) => {
     const today = new Date().toISOString().split('T')[0];
     const todayAttendance = await Attendance.countDocuments({ date: today });
 
-    const activeLecturers = await User.countDocuments({ role: 'lecturer', status: 'active' });
+    const activeMembers = await User.countDocuments({ role: 'member', status: 'active' });
 
     // Advanced metrics
     const verifiedUsers = await User.countDocuments({ verified: true });
@@ -288,7 +313,7 @@ const getStats = async (req, res, next) => {
       success: true,
       stats: {
         totalUsers,
-        activeLecturers,
+        activeMembers,
         totalSections,
         totalStudents,
         totalAttendance,
@@ -466,7 +491,7 @@ const enrollEmployee = async (req, res, next) => {
       address: address?.trim() || '',
       dateOfBirth: dateOfBirth || undefined,
       gender: gender || '',
-      role: 'lecturer',
+      role: 'member',
       status: employmentStatus === 'active' || !employmentStatus ? 'active' : 'disabled',
       employeeId: employeeId?.trim() || '',
       jobTitle: jobTitle?.trim() || '',
@@ -542,6 +567,122 @@ const uploadUserImage = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /admin/sms/test  body: { to: string, message?: string }
+ * Sends a single SMS (Twilio). For verifying configuration.
+ */
+const sendTestSms = async (req, res, next) => {
+  try {
+    if (!isSmsFullyConfigured()) {
+      return res.status(400).json({
+        error:
+          'Messaging not configured. For SMS: TWILIO_FROM_NUMBER. For WhatsApp: TWILIO_MESSAGING_CHANNEL=whatsapp and TWILIO_WHATSAPP_FROM. Plus SMS_ENABLED=true, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN.',
+      });
+    }
+    const { to, message } = req.body;
+    const phone = typeof to === 'string' ? to.trim() : '';
+    if (!phone) {
+      return res.status(400).json({ error: 'to (phone number) is required' });
+    }
+    const body =
+      (typeof message === 'string' && message.trim().slice(0, 320)) ||
+      'Smart Face Attendance: test SMS. If you received this, Twilio is working.';
+    await sendSmsTwilio({ to: phone, body });
+    await AuditLog.create({
+      actorUserId: req.user._id,
+      action: 'SMS_TEST',
+      metadata: { ok: true },
+    });
+    res.json({ success: true, message: 'SMS sent' });
+  } catch (err) {
+    logger.warn(`sendTestSms: ${err.message}`);
+    res.status(502).json({ error: err.message || 'Twilio request failed' });
+  }
+};
+
+/**
+ * POST /admin/sms/absent-today
+ * Query: date=YYYY-MM-DD (optional, default today in TZ), sectionId (optional)
+ * Sends one SMS per student (deduped) with absent status to guardian phone.
+ */
+const notifyAbsentTodaySMS = async (req, res, next) => {
+  try {
+    if (!isSmsFullyConfigured()) {
+      return res.status(400).json({
+        error:
+          'Messaging not configured. Set Twilio vars (SMS or WhatsApp — see TWILIO_MESSAGING_CHANNEL).',
+      });
+    }
+
+    const { date, sectionId } = req.query;
+    const targetDate = date && /^\d{4}-\d{2}-\d{2}$/.test(String(date)) ? String(date) : todayDate();
+
+    const filter = { date: targetDate, status: 'absent' };
+    if (sectionId && mongoose.Types.ObjectId.isValid(String(sectionId))) {
+      filter.sectionId = sectionId;
+    }
+
+    const records = await Attendance.find(filter).populate('studentId').lean();
+
+    const seen = new Map();
+    for (const r of records) {
+      const st = r.studentId;
+      if (!st || !st._id) continue;
+      const id = st._id.toString();
+      if (!seen.has(id)) seen.set(id, { student: st, sectionId: r.sectionId });
+    }
+
+    const entries = Array.from(seen.values());
+    const sectionObjectIds = [
+      ...new Set(entries.map((e) => e.sectionId).filter(Boolean).map((id) => id.toString())),
+    ].map((id) => new mongoose.Types.ObjectId(id));
+
+    const sections = await Section.find({ _id: { $in: sectionObjectIds } }).select('sectionName').lean();
+    const sectionNameById = Object.fromEntries(sections.map((s) => [s._id.toString(), s.sectionName]));
+
+    const smsMax = parseInt(process.env.SMS_MAX_PER_RUN || process.env.SMS_MAX_PER_SESSION || '100', 10);
+    let sent = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const { student, sectionId: sid } of entries.slice(0, smsMax)) {
+      if (!student.guardianPhone) {
+        skipped++;
+        continue;
+      }
+      const sectionName = sectionNameById[sid?.toString()] || 'class';
+      const body = buildAbsentGuardianMessage(student, sectionName, targetDate);
+      try {
+        const result = await sendSmsTwilio({ to: student.guardianPhone, body });
+        if (result?.skipped) skipped++;
+        else sent++;
+      } catch (err) {
+        failed++;
+        logger.warn(`notifyAbsentTodaySMS failed for ${student.guardianPhone}: ${err.message}`);
+      }
+    }
+
+    await AuditLog.create({
+      actorUserId: req.user._id,
+      action: 'SMS_ABSENT_BULK',
+      metadata: { date: targetDate, sectionId: sectionId || null, sent, failed, skipped },
+    });
+
+    res.json({
+      success: true,
+      date: targetDate,
+      uniqueAbsentStudents: entries.length,
+      sent,
+      failed,
+      skipped,
+      cappedAt: smsMax,
+      truncated: entries.length > smsMax,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createUser,
   getUsers,
@@ -555,5 +696,7 @@ module.exports = {
   getUserActivity,
   uploadUserImage,
   enrollEmployee,
+  notifyAbsentTodaySMS,
+  sendTestSms,
 };
 

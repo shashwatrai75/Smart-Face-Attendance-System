@@ -36,22 +36,20 @@ const Sidebar = () => {
     { path: '/admin/enroll-employee', label: 'Enroll Employee', icon: '👤' },
     { path: '/admin/history', label: 'History', icon: '📜' },
     { path: '/admin/reports', label: 'Reports', icon: '📈' },
-    { path: '/lecturer/dashboard', label: 'Lecturer Dashboard', icon: '📚' },
-    { path: '/lecturer/enroll', label: 'Enroll Students', icon: '➕' },
-    { path: '/lecturer/attendance', label: 'Live Attendance', icon: '📹' },
-    { path: '/lecturer/history', label: 'Lecturer History', icon: '📜' },
-    { path: '/lecturer/reports', label: 'Lecturer Reports', icon: '📈' },
+    { path: '/member/dashboard', label: 'Member Dashboard', icon: '📚' },
+    { path: '/member/enroll', label: 'Enroll Students', icon: '➕' },
+    { path: '/member/attendance', label: 'Live Attendance', icon: '📹' },
+    { path: '/member/history', label: 'Member History', icon: '📜' },
+    { path: '/member/reports', label: 'Member Reports', icon: '📈' },
     { path: '/hr/dashboard', label: 'Supervisor Dashboard', icon: '🏢' },
     { path: '/hr/enroll-employee', label: 'Supervisor Enroll Employee', icon: '👤' },
     { path: '/hr/face-scan', label: 'Supervisor Face Scan', icon: '📷' },
   ];
 
-  const lecturerLinks = [
-    { path: '/lecturer/dashboard', label: 'Dashboard', icon: '📊' },
-    { path: '/lecturer/enroll', label: 'Enroll Students', icon: '➕' },
-    { path: '/lecturer/attendance', label: 'Live Attendance', icon: '📹' },
-    { path: '/lecturer/history', label: 'History', icon: '📜' },
-    { path: '/lecturer/reports', label: 'Reports', icon: '📈' },
+  const memberLinks = [
+    { path: '/member/dashboard', label: 'Dashboard', icon: '📊' },
+    { path: '/member/enroll', label: 'Enroll Students', icon: '➕' },
+    { path: '/member/attendance', label: 'Live Attendance', icon: '📹' },
   ];
 
   const links =
@@ -61,7 +59,7 @@ const Sidebar = () => {
         ? adminLinks
         : user?.role === 'hr'
           ? hrLinks
-          : lecturerLinks;
+          : memberLinks;
 
   return (
     <aside className="w-64 bg-gradient-to-b from-gray-900 to-gray-800 text-white min-h-screen p-6 flex flex-col shadow-2xl">

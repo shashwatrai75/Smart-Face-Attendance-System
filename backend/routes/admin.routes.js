@@ -16,6 +16,8 @@ const {
   getUserActivity,
   uploadUserImage,
   enrollEmployee,
+  notifyAbsentTodaySMS,
+  sendTestSms,
 } = require('../controllers/adminController');
 
 router.use(authenticate);
@@ -37,6 +39,8 @@ router.post('/user/:id/image', uploadUserImage);
 router.get('/user/:id/activity', getUserActivity);
 router.delete('/user/:id', deleteUser);
 router.get('/stats', getStats);
+router.post('/sms/absent-today', notifyAbsentTodaySMS);
+router.post('/sms/test', sendTestSms);
 
 module.exports = router;
 

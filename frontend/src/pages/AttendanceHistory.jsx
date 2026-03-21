@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getSessionHistory, getSessionDetails, getSections } from '../api/api';
-import { formatDate, formatDateTime } from '../utils/date';
+import { getSessionHistory, getSessionDetails, getSections, notifyAbsentTodaySMS } from '../api/api';
+import { formatDate, formatDateTime, getToday, getFirstOfMonth } from '../utils/date';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -21,10 +21,11 @@ const AttendanceHistory = () => {
   const [activeTab, setActiveTab] = useState('sessions');
   const [filters, setFilters] = useState({
     sectionId: '',
-    startDate: '',
-    endDate: '',
+    startDate: getFirstOfMonth(),
+    endDate: getToday(),
   });
   const [error, setError] = useState(null);
+  const [smsBusy, setSmsBusy] = useState(false);
 
   useEffect(() => {
     try {
@@ -80,6 +81,33 @@ const AttendanceHistory = () => {
 
   const handleApplyFilters = () => {
     fetchSessions();
+  };
+
+  const handleSmsAbsentToday = async () => {
+    const scope = filters.sectionId
+      ? 'the selected section'
+      : 'all sections';
+    if (
+      !window.confirm(
+        `Send SMS to guardians of students marked absent today for ${scope}? (Uses server date/timezone and Twilio.)`
+      )
+    ) {
+      return;
+    }
+    setSmsBusy(true);
+    try {
+      const params = {};
+      if (filters.sectionId) params.sectionId = filters.sectionId;
+      const res = await notifyAbsentTodaySMS(params);
+      setToast({
+        message: `SMS: ${res.sent} sent, ${res.failed} failed, ${res.skipped} skipped (${res.uniqueAbsentStudents} absent students).`,
+        type: res.sent > 0 ? 'success' : 'error',
+      });
+    } catch (err) {
+      setToast({ message: err?.error || 'SMS request failed', type: 'error' });
+    } finally {
+      setSmsBusy(false);
+    }
   };
 
   const handleViewDetails = async (sessionId) => {
@@ -260,6 +288,25 @@ const AttendanceHistory = () => {
             </div>
           </div>
 
+          {canViewTeacherAttendance && activeTab === 'sessions' && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                Notify guardians by SMS that the student <strong>did not attend today</strong> (server date /
+                timezone). Sends one message per student (deduplicated). Respect Twilio limits — configure{' '}
+                <code className="text-xs bg-amber-100 dark:bg-amber-900/50 px-1 rounded">SMS_MAX_PER_RUN</code> if
+                needed.
+              </p>
+              <button
+                type="button"
+                disabled={smsBusy}
+                onClick={handleSmsAbsentToday}
+                className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm font-medium"
+              >
+                {smsBusy ? 'Sending…' : 'Send absent SMS (today)'}
+              </button>
+            </div>
+          )}
+
           {/* Sessions Table */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
@@ -423,8 +470,10 @@ const AttendanceHistory = () => {
                       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                           <div>
-                            <span className="font-medium text-gray-700">Lecturer:</span>{' '}
-                            <span className="text-gray-900">{sessionDetails.session.lecturerName}</span>
+                            <span className="font-medium text-gray-700">Member:</span>{' '}
+                            <span className="text-gray-900">
+                              {sessionDetails.session.memberName ?? sessionDetails.session.lecturerName}
+                            </span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-700">Duration:</span>{' '}

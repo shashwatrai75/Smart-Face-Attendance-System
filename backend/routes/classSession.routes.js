@@ -8,7 +8,7 @@ const { updateClassSession, deleteClassSession } = require('../controllers/class
 router.use(authenticate);
 router.use(apiLimiter);
 
-router.put('/:id', authorize('admin', 'superadmin', 'lecturer'), updateClassSession);
-router.delete('/:id', authorize('admin', 'superadmin', 'lecturer'), deleteClassSession);
+router.put('/:id', authorize('admin', 'superadmin', 'member'), updateClassSession);
+router.delete('/:id', authorize('admin', 'superadmin', 'member'), deleteClassSession);
 
 module.exports = router;

@@ -20,7 +20,7 @@ const Register = () => {
     country: '',
     dateOfBirth: '',
     gender: '',
-    role: 'lecturer',
+    role: 'member',
     institutionName: '',
     image: '',
   });
@@ -286,7 +286,7 @@ const Register = () => {
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="lecturer">Lecturer</option>
+                      <option value="member">Member</option>
                       {isSuperadmin && (
                         <>
                           <option value="admin">Office Admin</option>

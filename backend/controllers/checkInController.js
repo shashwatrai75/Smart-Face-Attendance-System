@@ -1,8 +1,16 @@
+const mongoose = require('mongoose');
 const CheckInRecord = require('../models/CheckInRecord');
 const Section = require('../models/Section');
 const SectionMember = require('../models/SectionMember');
+const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
+const logger = require('../utils/logger');
 const { timeToMinutes, nowMinutes, todayDate } = require('../utils/timeHelpers');
+const {
+  isSmsFullyConfigured,
+  sendSmsTwilio,
+  buildEmployeeNoCheckInMessage,
+} = require('../utils/sms');
 
 const recordCheckIn = async (req, res, next) => {
   try {
@@ -134,7 +142,7 @@ const getCheckInHistory = async (req, res, next) => {
       if (dateTo) query.date.$lte = dateTo;
     }
 
-    if (user.role === 'lecturer') {
+    if (user.role === 'member') {
       query.userId = user._id;
     }
 
@@ -154,7 +162,111 @@ const getCheckInHistory = async (req, res, next) => {
   }
 };
 
+/**
+ * SMS employees (User.phone) who are department members but have no check-in for the given date.
+ * HR: restricted to their assigned department. Admin/superadmin: optional sectionId filter.
+ */
+const notifyEmployeeNoCheckInSMS = async (req, res, next) => {
+  try {
+    if (!isSmsFullyConfigured()) {
+      return res.status(400).json({
+        error:
+          'Messaging not configured. Set Twilio (SMS or WhatsApp via TWILIO_MESSAGING_CHANNEL).',
+      });
+    }
+
+    let { sectionId, date } = req.query;
+    const targetDate = date && /^\d{4}-\d{2}-\d{2}$/.test(String(date)) ? String(date) : todayDate();
+
+    if (req.user.role === 'hr' && req.user.sectionId) {
+      sectionId = req.user.sectionId.toString();
+    }
+
+    const deptQuery = { sectionType: 'department' };
+    if (sectionId && mongoose.Types.ObjectId.isValid(String(sectionId))) {
+      deptQuery._id = sectionId;
+    }
+
+    const depts = await Section.find(deptQuery).select('_id sectionName');
+    if (!depts.length) {
+      return res.json({
+        success: true,
+        date: targetDate,
+        message: 'No matching department sections',
+        absentCount: 0,
+        sent: 0,
+        failed: 0,
+        skipped: 0,
+      });
+    }
+
+    const smsMaxRaw = parseInt(process.env.SMS_MAX_PER_RUN || process.env.SMS_MAX_PER_SESSION || '100', 10);
+    const cap = Number.isFinite(smsMaxRaw) && smsMaxRaw > 0 ? smsMaxRaw : 100;
+
+    let sent = 0;
+    let failed = 0;
+    let skipped = 0;
+    let attempts = 0;
+    const handledAbsent = new Set();
+
+    for (const dept of depts) {
+      const members = await SectionMember.find({ sectionId: dept._id }).distinct('userId');
+      const checkedInIds = await CheckInRecord.find({ sectionId: dept._id, date: targetDate }).distinct('userId');
+      const checkedSet = new Set(checkedInIds.map((id) => id.toString()));
+
+      for (const uid of members) {
+        const uidStr = uid.toString();
+        if (checkedSet.has(uidStr)) continue;
+        if (handledAbsent.has(uidStr)) continue;
+
+        const emp = await User.findById(uid).select('name phone');
+        if (!emp?.phone) {
+          skipped++;
+          handledAbsent.add(uidStr);
+          continue;
+        }
+
+        if (attempts >= cap) break;
+
+        const body = buildEmployeeNoCheckInMessage(emp, dept.sectionName, targetDate);
+        attempts++;
+        try {
+          const result = await sendSmsTwilio({ to: emp.phone, body });
+          if (result?.skipped) skipped++;
+          else sent++;
+        } catch (err) {
+          failed++;
+          logger.warn(`Employee no-check-in SMS failed for ${emp.phone}: ${err.message}`);
+        }
+        handledAbsent.add(uidStr);
+      }
+      if (attempts >= cap) break;
+    }
+
+    await AuditLog.create({
+      actorUserId: req.user._id,
+      action: 'SMS_EMPLOYEE_NO_CHECKIN',
+      metadata: { date: targetDate, sectionId: sectionId || null, sent, failed, skipped },
+    });
+
+    res.json({
+      success: true,
+      date: targetDate,
+      absentEmployeesReached: handledAbsent.size,
+      smsAttempts: attempts,
+      sent,
+      failed,
+      skipped,
+      cappedAt: cap,
+      hitCap: attempts >= cap,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   recordCheckIn,
   getCheckInHistory,
+  notifyEmployeeNoCheckInSMS,
 };

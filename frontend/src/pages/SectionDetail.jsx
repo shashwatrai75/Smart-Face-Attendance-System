@@ -20,7 +20,7 @@ const SectionDetail = () => {
   const navigate = useNavigate();
   const [section, setSection] = useState(null);
   const [classSessions, setClassSessions] = useState([]);
-  const [lecturers, setLecturers] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -46,10 +46,10 @@ const SectionDetail = () => {
         getUsers(),
       ]);
       setSection(sectionRes.section);
-      const lecturerUsers = (usersRes.users || []).filter(
-        (u) => (u.role === 'lecturer' || u.role === 'admin') && u.status === 'active'
+      const memberUsers = (usersRes.users || []).filter(
+        (u) => (u.role === 'member' || u.role === 'lecturer' || u.role === 'admin') && u.status === 'active'
       );
-      setLecturers(lecturerUsers);
+      setMembers(memberUsers);
 
       if (sectionRes.section?.sectionType === 'class') {
         const sessionsRes = await getClassSessionsBySection(id);
@@ -237,7 +237,7 @@ const SectionDetail = () => {
                         required
                       >
                         <option value="">Select teacher</option>
-                        {lecturers.map((u) => (
+                        {members.map((u) => (
                           <option key={u._id} value={u._id}>
                             {u.name} ({u.email})
                           </option>
@@ -303,7 +303,7 @@ const SectionDetail = () => {
                       <button
                         onClick={() =>
                           navigate(
-                            `/lecturer/attendance?sectionType=class&sectionId=${id}&classSessionId=${s._id}`
+                            `/member/attendance?sectionType=class&sectionId=${id}&classSessionId=${s._id}`
                           )
                         }
                         className="text-sm text-indigo-600 hover:underline"

@@ -56,6 +56,16 @@ export const getStats = () => {
   return axiosClient.get('/admin/stats');
 };
 
+/** Query: { sectionId?, date? } — date YYYY-MM-DD, default server “today” (TZ). Admin/superadmin only. */
+export const notifyAbsentTodaySMS = (params) => {
+  return axiosClient.post('/admin/sms/absent-today', null, { params });
+};
+
+/** Admin/superadmin: send one test SMS via Twilio. */
+export const sendTestSms = (payload) => {
+  return axiosClient.post('/admin/sms/test', payload);
+};
+
 export const updateUserNotes = (id, notes) => {
   return axiosClient.put(`/admin/user/${id}/notes`, { notes });
 };
@@ -138,6 +148,11 @@ export const getCheckInHistory = (params) => {
   return axiosClient.get('/checkin/history', { params });
 };
 
+/** HR (own dept) or admin: SMS employees with no check-in today. Query: { sectionId?, date? } */
+export const notifyEmployeeNoCheckInSMS = (params) => {
+  return axiosClient.post('/checkin/notify-no-checkin-sms', null, { params });
+};
+
 // ============================================
 // STUDENT MANAGEMENT
 // ============================================
@@ -177,6 +192,10 @@ export const markAttendance = async (payload) => {
     classSessionId,
     recognizedStudents: studentsArray,
   });
+};
+
+export const heartbeatSession = (sessionId) => {
+  return axiosClient.post('/attendance/heartbeat', { sessionId });
 };
 
 export const manualOverride = (attendanceId, status, remark) => {
@@ -296,4 +315,3 @@ export const exportReport = async (sectionId, dateFrom, dateTo, format = 'xlsx')
 
   return { success: true };
 };
-

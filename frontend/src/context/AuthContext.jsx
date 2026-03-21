@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { getToken, getUser, setToken, setUser, removeToken, removeUser } from '../utils/jwt';
 
+const normalizeRole = (role) => (role === 'lecturer' ? 'member' : role);
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -25,7 +27,7 @@ export const AuthProvider = ({ children }) => {
         id: userData.id || userData._id || null,
         name: userData.name || 'User',
         email: userData.email || '',
-        role: userData.role || 'lecturer',
+        role: normalizeRole(userData.role) || 'member',
         institutionName: userData.institutionName || '',
         linkedStudentId: userData.linkedStudentId || null,
         sectionId: userData.sectionId || null,
@@ -52,7 +54,7 @@ export const AuthProvider = ({ children }) => {
       id: userData.id || userData._id,
       name: userData.name || 'User',
       email: userData.email || '',
-      role: userData.role || 'lecturer',
+      role: normalizeRole(userData.role) || 'member',
       institutionName: userData.institutionName || '',
       linkedStudentId: userData.linkedStudentId || null,
       sectionId: userData.sectionId || null,

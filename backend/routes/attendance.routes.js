@@ -6,6 +6,7 @@ const { apiLimiter } = require('../middleware/rateLimit');
 const {
   startSession,
   markAttendance,
+  heartbeatSession,
   manualOverride,
   getAttendanceHistory,
   getSessionHistory,
@@ -17,14 +18,15 @@ const {
 router.use(authenticate);
 router.use(apiLimiter);
 
-router.post('/start-session', authorize('superadmin', 'admin', 'lecturer'), startSession);
-router.post('/mark', authorize('superadmin', 'admin', 'lecturer'), markAttendance);
-router.post('/end-session', authorize('superadmin', 'admin', 'lecturer'), endSession);
-router.put('/manual-override', authorize('superadmin', 'admin', 'lecturer'), manualOverride);
-router.get('/history', authorize('superadmin', 'admin', 'lecturer'), getAttendanceHistory);
-router.get('/sessions', authorize('superadmin', 'admin', 'lecturer'), getSessionHistory);
-router.get('/session/:sessionId', authorize('superadmin', 'admin', 'lecturer'), getSessionDetails);
-router.get('/calendar', authorize('superadmin', 'admin', 'lecturer'), getCalendarAttendance);
+router.post('/start-session', authorize('superadmin', 'admin', 'member'), startSession);
+router.post('/mark', authorize('superadmin', 'admin', 'member'), markAttendance);
+router.post('/heartbeat', authorize('superadmin', 'admin', 'member'), heartbeatSession);
+router.post('/end-session', authorize('superadmin', 'admin', 'member'), endSession);
+router.put('/manual-override', authorize('superadmin', 'admin', 'member'), manualOverride);
+router.get('/history', authorize('superadmin', 'admin', 'member'), getAttendanceHistory);
+router.get('/sessions', authorize('superadmin', 'admin', 'member'), getSessionHistory);
+router.get('/session/:sessionId', authorize('superadmin', 'admin', 'member'), getSessionDetails);
+router.get('/calendar', authorize('superadmin', 'admin', 'member'), getCalendarAttendance);
 
 module.exports = router;
 

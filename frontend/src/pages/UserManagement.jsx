@@ -233,7 +233,7 @@ const UserManagement = () => {
     const disabled = users.filter((u) => u.status === 'disabled').length;
     const admins = users.filter((u) => u.role === 'admin').length;
     const superadmins = users.filter((u) => u.role === 'superadmin').length;
-    const lecturers = users.filter((u) => u.role === 'lecturer').length;
+    const members = users.filter((u) => u.role === 'member' || u.role === 'lecturer').length;
     const verified = users.filter((u) => u.verified).length;
     const recentLogin = users.filter((u) => {
       if (!u.lastLogin) return false;
@@ -247,7 +247,7 @@ const UserManagement = () => {
       return userDate >= monthStart;
     }).length;
 
-    return { total, active, disabled, admins, superadmins, lecturers, verified, recentLogin, newThisMonth };
+    return { total, active, disabled, admins, superadmins, members, verified, recentLogin, newThisMonth };
   };
 
   const stats = getStatistics();
@@ -334,7 +334,7 @@ const UserManagement = () => {
 
   // Chart data - only show roles that current user can see
   const getRoleDistributionData = () => {
-    const data = [{ name: 'Lecturer', value: stats.lecturers, color: '#3b82f6' }];
+    const data = [{ name: 'Member', value: stats.members, color: '#3b82f6' }];
     if (currentUser?.role === 'superadmin') {
       data.unshift({ name: 'Office Admin', value: stats.admins, color: '#8b5cf6' });
       data.unshift({ name: 'Superadmin', value: stats.superadmins, color: '#ec4899' });
@@ -573,7 +573,7 @@ const UserManagement = () => {
       country: selectedUser.country || '',
       dateOfBirth: selectedUser.dateOfBirth ? new Date(selectedUser.dateOfBirth).toISOString().split('T')[0] : '',
       gender: selectedUser.gender || '',
-      role: selectedUser.role || 'lecturer',
+      role: selectedUser.role === 'lecturer' ? 'member' : selectedUser.role || 'member',
       institutionName: selectedUser.institutionName || '',
       status: selectedUser.status || 'active',
       guardianName: selectedUser.guardianName || '',
@@ -805,11 +805,11 @@ const UserManagement = () => {
                     <div>
                       <label className="block text-sm text-gray-600 mb-1">Role</label>
                       <select
-                        value={editFormData.role || 'lecturer'}
+                        value={editFormData.role || 'member'}
                         onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="lecturer">Lecturer</option>
+                        <option value="member">Member</option>
                         {isSuperadmin && (
                           <>
                             <option value="admin">Office Admin</option>
@@ -1172,8 +1172,8 @@ const UserManagement = () => {
             <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg shadow-lg p-4 text-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-indigo-100 text-sm font-medium">Teachers</p>
-                  <p className="text-3xl font-bold mt-1">{stats.teachers}</p>
+                  <p className="text-indigo-100 text-sm font-medium">Members</p>
+                  <p className="text-3xl font-bold mt-1">{stats.members}</p>
                 </div>
                 <div className="bg-white bg-opacity-20 rounded-full p-3">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1261,7 +1261,7 @@ const UserManagement = () => {
                   {isSuperadmin && <option value="superadmin">Superadmin</option>}
                   {isSuperadmin && <option value="admin">Office Admin</option>}
                   {isSuperadmin && <option value="hr">Supervisor</option>}
-                  <option value="lecturer">Lecturer</option>
+                  <option value="member">Member</option>
                 </select>
               </div>
               <div>

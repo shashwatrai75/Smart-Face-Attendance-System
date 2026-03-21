@@ -2,50 +2,103 @@ const Section = require('../models/Section');
 const SectionMember = require('../models/SectionMember');
 const { timeToMinutes, todayDate, compareDates } = require('../utils/timeHelpers');
 
+const validateSectionSchedule = (sectionType, startDate, endDate, startTime, endTime) => {
+  if (sectionType === 'class') {
+    if (startDate && endDate && compareDates(startDate, endDate) >= 0) {
+      return 'Start date must be before end date';
+    }
+    if (startTime && endTime) {
+      const startM = timeToMinutes(startTime);
+      const endM = timeToMinutes(endTime);
+      if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
+        return 'End time must be after start time';
+      }
+    }
+  }
+  if (sectionType === 'department' && startTime && endTime) {
+    const startM = timeToMinutes(startTime);
+    const endM = timeToMinutes(endTime);
+    if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
+      return 'End time must be after start time';
+    }
+  }
+  return null;
+};
+
 const createSection = async (req, res, next) => {
   try {
-    const { sectionName, sectionType, startDate, endDate, startTime, endTime, description } = req.body;
+    const {
+      sectionName,
+      sectionType: bodySectionType,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      description,
+      parentSectionId,
+      subsections,
+    } = req.body;
+
+    let parent = null;
+    let sectionType = bodySectionType;
+
+    if (parentSectionId) {
+      parent = await Section.findById(parentSectionId);
+      if (!parent) {
+        return res.status(400).json({ error: 'Parent section not found' });
+      }
+      if (parent.parentSectionId) {
+        return res.status(400).json({ error: 'Subsections can only be created under a top-level section' });
+      }
+      sectionType = parent.sectionType;
+    }
 
     if (!sectionName || !sectionType) {
       return res.status(400).json({ error: 'Section name and type are required' });
     }
 
-    if (sectionType === 'class') {
-      if (startDate && endDate && compareDates(startDate, endDate) >= 0) {
-        return res.status(400).json({ error: 'Start date must be before end date' });
-      }
-      if (startTime && endTime) {
-        const startM = timeToMinutes(startTime);
-        const endM = timeToMinutes(endTime);
-        if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
-          return res.status(400).json({ error: 'End time must be after start time' });
-        }
-      }
+    const scheduleErr = validateSectionSchedule(sectionType, startDate, endDate, startTime, endTime);
+    if (scheduleErr) {
+      return res.status(400).json({ error: scheduleErr });
     }
 
-    if (sectionType === 'department') {
-      if (startTime && endTime) {
-        const startM = timeToMinutes(startTime);
-        const endM = timeToMinutes(endTime);
-        if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
-          return res.status(400).json({ error: 'End time must be after start time' });
-        }
-      }
-    }
-
-    const section = await Section.create({
-      sectionName,
+    const baseFields = {
+      sectionName: sectionName.trim(),
       sectionType,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       startTime: startTime || undefined,
       endTime: endTime || undefined,
-      description: description || undefined,
-    });
+      description: description ? String(description).trim() || undefined : undefined,
+      parentSectionId: parentSectionId || undefined,
+    };
+
+    const section = await Section.create(baseFields);
+
+    const createdSubsections = [];
+    if (!parentSectionId && Array.isArray(subsections) && subsections.length > 0) {
+      for (const sub of subsections) {
+        const name = typeof sub.sectionName === 'string' ? sub.sectionName.trim() : '';
+        if (!name) continue;
+        const subDesc = sub.description != null ? String(sub.description).trim() : '';
+        const child = await Section.create({
+          sectionName: name,
+          sectionType,
+          startDate: sub.startDate || baseFields.startDate,
+          endDate: sub.endDate || baseFields.endDate,
+          startTime: sub.startTime || baseFields.startTime,
+          endTime: sub.endTime || baseFields.endTime,
+          description: subDesc || undefined,
+          parentSectionId: section._id,
+        });
+        createdSubsections.push(child);
+      }
+    }
 
     res.status(201).json({
       success: true,
       section,
+      subsections: createdSubsections.length ? createdSubsections : undefined,
     });
   } catch (error) {
     next(error);
@@ -57,7 +110,7 @@ const getSections = async (req, res, next) => {
     const user = req.user;
     let query = {};
 
-    if (user.role === 'lecturer') {
+    if (user.role === 'member') {
       query.sectionType = 'class';
     } else if (user.role === 'hr') {
       query.sectionType = 'department';
@@ -92,9 +145,9 @@ const getSectionById = async (req, res, next) => {
       return res.status(404).json({ error: 'Section not found' });
     }
 
-    // Lecturers may only access class sections
-    if (req.user.role === 'lecturer' && section.sectionType === 'department') {
-      return res.status(403).json({ error: 'Access denied. Lecturers can only access class sections.' });
+    // Members may only access class sections
+    if (req.user.role === 'member' && section.sectionType === 'department') {
+      return res.status(403).json({ error: 'Access denied. Members can only access class sections.' });
     }
 
     // HR may only access their assigned department section
@@ -167,6 +220,16 @@ const updateSection = async (req, res, next) => {
   }
 };
 
+const deleteSectionRecursive = async (sectionId) => {
+  const sid = sectionId.toString();
+  const children = await Section.find({ parentSectionId: sectionId }).select('_id');
+  for (const ch of children) {
+    await deleteSectionRecursive(ch._id);
+  }
+  await SectionMember.deleteMany({ sectionId: sid });
+  await Section.findByIdAndDelete(sid);
+};
+
 const deleteSection = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -176,8 +239,7 @@ const deleteSection = async (req, res, next) => {
       return res.status(404).json({ error: 'Section not found' });
     }
 
-    await SectionMember.deleteMany({ sectionId: id });
-    await Section.findByIdAndDelete(id);
+    await deleteSectionRecursive(section._id);
 
     res.json({
       success: true,

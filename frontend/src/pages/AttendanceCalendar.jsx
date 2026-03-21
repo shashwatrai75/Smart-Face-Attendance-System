@@ -11,7 +11,7 @@ import Toast from '../components/Toast';
 const AttendanceCalendar = () => {
   const { user } = useAuth();
   const canSelectTeacherOrStudent = user?.role === 'superadmin' || user?.role === 'admin';
-  const isLecturer = user?.role === 'lecturer';
+  const isMember = user?.role === 'member';
 
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -24,11 +24,11 @@ const AttendanceCalendar = () => {
 
   const [sections, setSections] = useState([]);
   const [students, setStudents] = useState([]);
-  const [lecturers, setLecturers] = useState([]);
+  const [members, setMembers] = useState([]);
   const [filters, setFilters] = useState({
     sectionId: '',
     studentId: '',
-    lecturerId: '',
+    memberId: '',
   });
 
   const month = activeDate.getMonth() + 1;
@@ -39,25 +39,25 @@ const AttendanceCalendar = () => {
       getSections().then((r) => setSections(r.sections || [])).catch(() => setSections([]));
       getUsers().then((r) => {
         const users = r.users || [];
-        setLecturers(users.filter((u) => u.role === 'lecturer'));
-      }).catch(() => setLecturers([]));
-    } else if (isLecturer) {
+        setMembers(users.filter((u) => u.role === 'member'));
+      }).catch(() => setMembers([]));
+    } else if (isMember) {
       getSections().then((r) => setSections(r.sections || [])).catch(() => setSections([]));
     }
-  }, [canSelectTeacherOrStudent, isLecturer]);
+  }, [canSelectTeacherOrStudent, isMember]);
 
   useEffect(() => {
-    if (filters.sectionId && (canSelectTeacherOrStudent || isLecturer)) {
+    if (filters.sectionId && (canSelectTeacherOrStudent || isMember)) {
       getStudents(filters.sectionId).then((r) => setStudents(r.students || [])).catch(() => setStudents([]));
     } else {
       setStudents([]);
     }
-  }, [filters.sectionId, canSelectTeacherOrStudent, isLecturer]);
+  }, [filters.sectionId, canSelectTeacherOrStudent, isMember]);
 
   useEffect(() => {
     fetchCalendarData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, year, filters.sectionId, filters.studentId, filters.lecturerId]);
+  }, [month, year, filters.sectionId, filters.studentId, filters.memberId]);
 
   const fetchCalendarData = async () => {
     setLoading(true);
@@ -65,7 +65,7 @@ const AttendanceCalendar = () => {
       const params = { month, year };
       if (filters.sectionId) params.sectionId = filters.sectionId;
       if (filters.studentId) params.studentId = filters.studentId;
-      if (filters.lecturerId) params.lecturerId = filters.lecturerId;
+      if (filters.memberId) params.memberId = filters.memberId;
 
       const response = await getCalendarAttendance(params);
       setByDate(response.byDate || {});
@@ -134,7 +134,7 @@ const AttendanceCalendar = () => {
           <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {(canSelectTeacherOrStudent || isLecturer) && (
+              {(canSelectTeacherOrStudent || isMember) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
                   <select
@@ -169,14 +169,14 @@ const AttendanceCalendar = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Teacher</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Member</label>
                     <select
-                      value={filters.lecturerId}
-                      onChange={(e) => setFilters({ ...filters, lecturerId: e.target.value })}
+                      value={filters.memberId}
+                      onChange={(e) => setFilters({ ...filters, memberId: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">All Teachers</option>
-                      {lecturers.map((u) => (
+                      <option value="">All members</option>
+                      {members.map((u) => (
                         <option key={u._id || u.id} value={u._id || u.id}>
                           {u.name}
                         </option>

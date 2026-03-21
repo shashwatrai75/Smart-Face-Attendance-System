@@ -9,7 +9,7 @@ const getDashboardPath = (role) => {
   if (role === 'superadmin') return '/superadmin/system-settings';
   if (role === 'admin') return '/admin/dashboard';
   if (role === 'hr') return '/hr/dashboard';
-  if (role === 'lecturer') return '/lecturer/dashboard';
+  if (role === 'member') return '/member/dashboard';
   return '/admin/dashboard';
 };
 
@@ -52,7 +52,7 @@ const Login = () => {
           id: response.user.id || response.user._id,
           name: response.user.name || 'User',
           email: response.user.email || '',
-          role: response.user.role || 'lecturer',
+          role: response.user.role || 'member',
           institutionName: response.user.institutionName || '',
           linkedStudentId: response.user.linkedStudentId || null,
           sectionId: response.user.sectionId || null,

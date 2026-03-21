@@ -20,7 +20,7 @@ const attendanceSessionSchema = new mongoose.Schema(
     lecturerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Lecturer is required'],
+      required: [true, 'Session host is required'],
     },
     startTime: {
       type: Date,
@@ -28,6 +28,10 @@ const attendanceSessionSchema = new mongoose.Schema(
     },
     endTime: {
       type: Date,
+    },
+    smsSentAt: {
+      type: Date,
+      default: null,
     },
     date: {
       type: String,

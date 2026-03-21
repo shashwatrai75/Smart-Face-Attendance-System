@@ -6,7 +6,7 @@ import Sidebar from '../components/Sidebar';
 import Loader from '../components/Loader';
 import Toast from '../components/Toast';
 
-const LecturerDashboard = () => {
+const MemberDashboard = () => {
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -19,7 +19,6 @@ const LecturerDashboard = () => {
   const fetchSections = async () => {
     try {
       const response = await getSections();
-      // Backend returns only class sections for lecturers; filter again for safety
       const list = (response.sections || []).filter((s) => s.sectionType === 'class');
       setSections(list);
     } catch (err) {
@@ -35,7 +34,7 @@ const LecturerDashboard = () => {
     try {
       const response = await startSession({ sectionId: section._id });
       navigate(
-        `/lecturer/attendance?sessionId=${response.sessionId}&sectionId=${section._id}&sectionType=class`
+        `/member/attendance?sessionId=${response.sessionId}&sectionId=${section._id}&sectionType=class`
       );
     } catch (err) {
       setToast({ message: err.error || 'Failed to start session', type: 'error' });
@@ -122,4 +121,4 @@ const LecturerDashboard = () => {
   );
 };
 
-export default LecturerDashboard;
+export default MemberDashboard;
