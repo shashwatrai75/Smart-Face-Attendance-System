@@ -38,7 +38,9 @@ const EnrollEmployee = () => {
     try {
       const response = await getSections();
       const all = response.sections || [];
-      const deptSections = all.filter((s) => s.sectionType === 'department');
+      const deptSections = all.filter(
+        (s) => s.sectionType === 'department' && (s.parentSectionId || !s.hasSubclasses)
+      );
       setSections(deptSections);
       // HR: pre-select assigned department when only one or when user.sectionId matches
       if (user?.sectionId && deptSections.length > 0) {

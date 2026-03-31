@@ -1,25 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { getSummary, getClassWiseData, getTrendData, exportReport, getSections } from '../api/api';
 import { formatDate } from '../utils/date';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
-import Loader from '../components/Loader';
 import Toast from '../components/Toast';
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import DashboardLayout from '../components/dashboard/DashboardLayout';
+import StatCard from '../components/dashboard/StatCard';
+import ChartSkeleton from '../components/analytics/ChartSkeleton';
+
+const AttendanceLineChartCard = lazy(() => import('../components/analytics/charts/AttendanceLineChartCard'));
+const StatusDonutChartCard = lazy(() => import('../components/analytics/charts/StatusDonutChartCard'));
+const ClassBarChartCard = lazy(() => import('../components/analytics/charts/ClassBarChartCard'));
+const WeeklyAreaChartCard = lazy(() => import('../components/analytics/charts/WeeklyAreaChartCard'));
 
 const Reports = () => {
   const [sections, setSections] = useState([]);
@@ -34,12 +24,11 @@ const Reports = () => {
   const [classWiseData, setClassWiseData] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [filters, setFilters] = useState({
+    classId: '',
     sectionId: '',
     startDate: '',
     endDate: '',
   });
-
-  const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899'];
 
   useEffect(() => {
     fetchSections();
@@ -83,7 +72,7 @@ const Reports = () => {
   };
 
   const handleFilterChange = (key, value) => {
-    setFilters({ ...filters, [key]: value });
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleGenerateReport = () => {
@@ -121,34 +110,71 @@ const Reports = () => {
     const late = classWiseData.reduce((sum, item) => sum + item.lateCount, 0);
 
     return [
-      { name: 'Present', value: present, color: '#10b981' },
+      { name: 'Present', value: present, color: '#22c55e' },
       { name: 'Absent', value: absent, color: '#ef4444' },
       { name: 'Late', value: late, color: '#f59e0b' },
     ].filter((item) => item.value > 0);
   };
 
-  const chartData = classWiseData.map((item) => ({
-    ...item,
-    sectionName: item.sectionName || item.className || 'Section',
-  }));
+  const chartData = useMemo(
+    () =>
+      (classWiseData || []).map((item) => ({
+        ...item,
+        sectionName: item.sectionName || item.className || 'Section',
+      })),
+    [classWiseData]
+  );
 
-  if (loading && summary.totalSections === 0) {
-    return (
-      <div className="min-h-screen page-bg">
-        <Navbar />
-        <div className="flex">
-          <Sidebar />
-          <main className="flex-1 p-8 flex items-center justify-center">
-            <Loader />
-          </main>
-        </div>
-      </div>
+  const classes = useMemo(
+    () =>
+      (sections || [])
+        .filter((s) => s.sectionType === 'class' && !s.parentSectionId)
+        .map((s) => ({ id: s._id || s.id, name: s.sectionName })),
+    [sections]
+  );
+
+  const childrenOf = (parentId) =>
+    (sections || []).filter(
+      (s) => s.parentSectionId && String(s.parentSectionId?._id || s.parentSectionId) === String(parentId)
     );
-  }
+
+  const availableSections = useMemo(() => {
+    if (!filters.classId) return sections || [];
+    return childrenOf(filters.classId);
+  }, [sections, filters.classId]);
+
+  const attendanceToday = useMemo(() => {
+    const latest = (trendData || []).slice(-1)[0];
+    if (!latest) return 0;
+    const present = Number(latest.present || 0);
+    const absent = Number(latest.absent || 0);
+    const late = Number(latest.late || 0);
+    return present + absent + late;
+  }, [trendData]);
+
+  const absentCount = useMemo(() => {
+    const latest = (trendData || []).slice(-1)[0];
+    return Number(latest?.absent || 0);
+  }, [trendData]);
+
+  const attendanceRate = useMemo(() => {
+    const latest = (trendData || []).slice(-1)[0];
+    const pct = Number(latest?.attendancePercentage || 0);
+    return Number.isFinite(pct) ? pct : 0;
+  }, [trendData]);
+
+  const formatX = (value) => formatDate(value);
+
+  const onClassChange = (classId) => {
+    setFilters((prev) => ({
+      ...prev,
+      classId,
+      sectionId: classId ? '' : prev.sectionId,
+    }));
+  };
 
   return (
-    <div className="min-h-screen page-bg">
-      <Navbar />
+    <DashboardLayout pageTitle="Attendance Analytics">
       {toast && (
         <Toast
           message={toast.message}
@@ -156,363 +182,151 @@ const Reports = () => {
           onClose={() => setToast(null)}
         />
       )}
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">
+      <div className="space-y-8">
+        {/* Header + actions */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
               Attendance Reports & Analytics
             </h1>
-            <p className="text-gray-600 mt-1">
-              View comprehensive attendance statistics and analytics
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+              Clean, interactive insights across classes, sections, and date ranges.
             </p>
           </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
-            <div
-              className="grid grid-cols-1 gap-4 md:grid-cols-5"
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGenerateReport}
+              disabled={loading}
+              className="rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Section
-                </label>
-                <select
-                  value={filters.sectionId}
-                  onChange={(e) => handleFilterChange('sectionId', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">All Sections</option>
-                  {sections.map((sec) => (
-                    <option key={sec._id || sec.id} value={sec._id || sec.id}>
-                      {sec.sectionName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  From Date
-                </label>
-                <input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  To Date
-                </label>
-                <input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={handleGenerateReport}
-                  disabled={loading}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400"
-                >
-                  Generate Report
-                </button>
-              </div>
-              <div className="flex items-end gap-2">
-                <button
-                  onClick={() => handleExport('xlsx')}
-                  disabled={loading || !filters.sectionId}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400 text-sm"
-                >
-                  Export Excel
-                </button>
-                <button
-                  onClick={() => handleExport('csv')}
-                  disabled={loading || !filters.sectionId}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400 text-sm"
-                >
-                  Export CSV
-                </button>
-              </div>
-            </div>
+              {loading ? 'Loading…' : 'Apply Filters'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExport('xlsx')}
+              disabled={loading || !filters.sectionId}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-100 dark:hover:bg-white/5"
+              title="Export Excel"
+            >
+              Export XLSX
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExport('csv')}
+              disabled={loading || !filters.sectionId}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-100 dark:hover:bg-white/5"
+              title="Export CSV"
+            >
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">Filters</div>
+          <div className="mt-1 text-xs text-slate-600 dark:text-slate-300/70">
+            Narrow analytics by date range, class, and section.
           </div>
 
-          <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-4">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Sections</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {summary.totalSections}
-                  </p>
-                </div>
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <svg
-                    className="w-8 h-8 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Students</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {summary.totalStudents}
-                  </p>
-                </div>
-                <div className="p-3 bg-green-100 rounded-full">
-                  <svg
-                    className="w-8 h-8 text-green-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Average Attendance %</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {summary.averageAttendance.toFixed(1)}%
-                  </p>
-                </div>
-                <div className="p-3 bg-yellow-100 rounded-full">
-                  <svg
-                    className="w-8 h-8 text-yellow-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v7a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Sessions Conducted</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {summary.totalSessions}
-                  </p>
-                </div>
-                <div className="p-3 bg-purple-100 rounded-full">
-                  <svg
-                    className="w-8 h-8 text-purple-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-2">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Attendance per Section
-              </h3>
-              {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="sectionName"
-                      angle={-45}
-                      textAnchor="end"
-                      height={100}
-                      interval={0}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="presentCount" fill="#10b981" name="Present" />
-                    <Bar dataKey="absentCount" fill="#ef4444" name="Absent" />
-                    <Bar dataKey="lateCount" fill="#f59e0b" name="Late" />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-[300px] text-gray-500">
-                  <div className="text-center">
-                    <svg
-                      className="w-12 h-12 mx-auto mb-4 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                      />
-                    </svg>
-                    <p>No data available</p>
-                  </div>
-                </div>
-              )}
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
+            <div className="lg:col-span-2">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">
+                Class
+              </label>
+              <select
+                value={filters.classId}
+                onChange={(e) => onClassChange(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+              >
+                <option value="">All Classes</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>
-              {getPieChartData().length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={getPieChartData()}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) =>
-                        `${name}: ${(percent * 100).toFixed(0)}%`
-                      }
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {getPieChartData().map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-[300px] text-gray-500">
-                  <div className="text-center">
-                    <svg
-                      className="w-12 h-12 mx-auto mb-4 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"
-                      />
-                    </svg>
-                    <p>No data available</p>
-                  </div>
-                </div>
-              )}
+            <div className="lg:col-span-2">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">
+                Section
+              </label>
+              <select
+                value={filters.sectionId}
+                onChange={(e) => handleFilterChange('sectionId', e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+              >
+                <option value="">All Sections</option>
+                {availableSections.map((sec) => (
+                  <option key={sec._id || sec.id} value={sec._id || sec.id}>
+                    {sec.sectionName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">
+                From
+              </label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">
+                To
+              </label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+              />
             </div>
           </div>
+        </div>
 
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Attendance Trend Over Time
-            </h3>
-            {trendData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    angle={-45}
-                    textAnchor="end"
-                    height={100}
-                    tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => formatDate(value)}
-                  />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="attendancePercentage"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    name="Attendance %"
-                    dot={{ r: 4 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="present"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    name="Present"
-                    dot={{ r: 4 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="absent"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    name="Absent"
-                    dot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[400px] text-gray-500">
-                <div className="text-center">
-                  <svg
-                    className="w-12 h-12 mx-auto mb-4 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
-                    />
-                  </svg>
-                  <p>No data available</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </main>
+        {/* Stats summary */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <StatCard label="Total Students" value={summary.totalStudents} tone="primary" trend={{ value: 3, label: 'vs last week' }} />
+          <StatCard label="Attendance Today" value={attendanceToday} tone="success" trend={{ value: 5, label: 'vs yesterday' }} />
+          <StatCard label="Attendance Rate" value={`${attendanceRate.toFixed(1)}%`} tone="primary" trend={{ value: 2, label: 'vs last week' }} />
+          <StatCard label="Absent Count" value={absentCount} tone="danger" trend={{ value: -1, label: 'vs yesterday' }} />
+          <StatCard label="Total Sections" value={summary.totalSections} tone="warning" trend={{ value: 1, label: 'vs last week' }} />
+          <StatCard label="Sessions" value={summary.totalSessions} tone="primary" trend={{ value: 4, label: 'vs last month' }} />
+        </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <Suspense fallback={<ChartSkeleton height={280} />}>
+            <div className="md:col-span-2 lg:col-span-2">
+              <AttendanceLineChartCard data={trendData} formatX={formatX} />
+            </div>
+          </Suspense>
+
+          <Suspense fallback={<ChartSkeleton height={280} />}>
+            <StatusDonutChartCard data={getPieChartData()} />
+          </Suspense>
+
+          <Suspense fallback={<ChartSkeleton height={280} />}>
+            <div className="md:col-span-2 lg:col-span-2">
+              <ClassBarChartCard data={chartData} />
+            </div>
+          </Suspense>
+
+          <Suspense fallback={<ChartSkeleton height={280} />}>
+            <WeeklyAreaChartCard data={trendData} formatX={formatX} />
+          </Suspense>
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

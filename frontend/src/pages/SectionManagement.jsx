@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   getSections,
   createSection,
@@ -29,19 +29,22 @@ const formatTimeForInput = (t) => {
   return `${h}:${m}`;
 };
 
+const defaultSubclass = () => ({ name: '', startTime: '', endTime: '' });
+
 const defaultForm = () => ({
   sectionName: '',
   sectionType: 'class',
+  needSubclasses: false,
   startDate: '',
   endDate: '',
   startTime: '',
   endTime: '',
   description: '',
-  parentSectionId: '',
-  subsectionNames: [],
+  subclasses: [defaultSubclass()],
 });
 
 const SectionManagement = () => {
+  const navigate = useNavigate();
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -80,6 +83,42 @@ const SectionManagement = () => {
       const endMin = eh * 60 + em;
       if (startMin >= endMin) e.endTime = 'End time must be after start time';
     }
+    if (formData.needSubclasses && !editingSection) {
+      const subs = formData.subclasses || [];
+      const filled = subs.filter((s) => (s.name || '').trim());
+      if (filled.length === 0) {
+        e.subclasses = 'Add at least one subclass';
+      } else {
+        const names = filled.map((s) => (s.name || '').trim());
+        const seen = new Set();
+        for (const n of names) {
+          const lower = n.toLowerCase();
+          if (seen.has(lower)) {
+            e.subclasses = `Duplicate subclass name: "${n}"`;
+            break;
+          }
+          seen.add(lower);
+        }
+        if (!e.subclasses) {
+          for (let i = 0; i < subs.length; i++) {
+            const s = subs[i];
+            if (!(s.name || '').trim()) continue;
+            const st = s.startTime || '';
+            const et = s.endTime || '';
+            if (st && et) {
+              const [sh, sm] = st.split(':').map(Number);
+              const [eh, em] = et.split(':').map(Number);
+              const startMin = sh * 60 + (sm || 0);
+              const endMin = eh * 60 + (em || 0);
+              if (startMin >= endMin) {
+                e[`subclass_${i}`] = 'End time must be after start time';
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -91,6 +130,7 @@ const SectionManagement = () => {
       const payload = {
         sectionName: formData.sectionName.trim(),
         sectionType: formData.sectionType,
+        hasSubclasses: formData.needSubclasses,
         description: formData.description.trim() || undefined,
         startDate: formData.startDate || undefined,
         endDate: formData.endDate || undefined,
@@ -99,28 +139,29 @@ const SectionManagement = () => {
       };
 
       if (editingSection) {
+        payload.hasSubclasses = formData.hasSubclasses ?? formData.needSubclasses;
         await updateSection(editingSection._id, payload);
         setToast({ message: 'Section updated', type: 'success' });
       } else {
-        if (formData.parentSectionId) {
-          payload.parentSectionId = formData.parentSectionId;
-        } else {
-          const names = (formData.subsectionNames || [])
-            .map((n) => (typeof n === 'string' ? n.trim() : ''))
-            .filter(Boolean);
-          if (names.length > 0) {
-            payload.subsections = names.map((sectionName) => ({ sectionName }));
-          }
+        if (formData.needSubclasses && (formData.subclasses || []).length > 0) {
+          payload.subclasses = formData.subclasses
+            .filter((s) => (s.name || '').trim())
+            .map((s) => ({
+              name: (s.name || '').trim(),
+              startTime: s.startTime || undefined,
+              endTime: s.endTime || undefined,
+            }));
         }
         const res = await createSection(payload);
-        const subCount = res.data?.subsections?.length || 0;
-        setToast({
-          message:
-            subCount > 0
-              ? `Section created with ${subCount} subsection${subCount === 1 ? '' : 's'}`
-              : 'Section created',
-          type: 'success',
-        });
+        const section = res.data?.section || res.section;
+        setToast({ message: 'Section created', type: 'success' });
+        if (section?.hasSubclasses) {
+          setShowForm(false);
+          setFormData(defaultForm());
+          fetchData();
+          navigate(`/admin/sections/${section._id}`);
+          return;
+        }
       }
       setShowForm(false);
       setEditingSection(null);
@@ -140,15 +181,16 @@ const SectionManagement = () => {
   const handleEdit = (section) => {
     setEditingSection(section);
     setFormData({
+      ...defaultForm(),
       sectionName: section.sectionName || '',
       sectionType: section.sectionType || 'class',
+      needSubclasses: section.hasSubclasses === true,
+      hasSubclasses: section.hasSubclasses === true,
       startDate: formatDateForInput(section.startDate),
       endDate: formatDateForInput(section.endDate),
       startTime: formatTimeForInput(section.startTime),
       endTime: formatTimeForInput(section.endTime),
       description: section.description || '',
-      parentSectionId: '',
-      subsectionNames: [],
     });
     setShowForm(true);
   };
@@ -236,7 +278,7 @@ const SectionManagement = () => {
                     value={formData.sectionName}
                     onChange={(e) => setFormData({ ...formData, sectionName: e.target.value })}
                     className={`${inputClass} ${errors.sectionName ? 'border-red-500' : ''}`}
-                    placeholder="e.g. CS 101 A or HR Department"
+                    placeholder="e.g. Class 10, CS 101, or HR Department"
                     required
                   />
                   {errors.sectionName && (
@@ -244,108 +286,153 @@ const SectionManagement = () => {
                   )}
                 </div>
 
-                {!editingSection && (
-                  <div>
-                    <label className={labelClass}>Create under parent (optional)</label>
-                    <select
-                      value={formData.parentSectionId}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        const p = v ? sections.find((s) => String(s._id) === String(v)) : null;
-                        setFormData((prev) => ({
-                          ...prev,
-                          parentSectionId: v,
-                          subsectionNames: v ? [] : prev.subsectionNames,
-                          sectionType: p?.sectionType ?? prev.sectionType,
-                        }));
-                      }}
-                      className={inputClass}
-                    >
-                      <option value="">— Top-level section (no parent) —</option>
-                      {rootSections.map((s) => (
-                        <option key={s._id} value={s._id}>
-                          {s.sectionName} ({s.sectionType === 'class' ? 'Class' : 'Department'})
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                      Choose a top-level section to add this as a subsection, or leave empty to create at the root.
-                    </p>
-                  </div>
-                )}
-
                 <div>
                   <label className={labelClass}>Section Type</label>
                   <select
                     value={formData.sectionType}
                     onChange={(e) => setFormData({ ...formData, sectionType: e.target.value })}
                     className={inputClass}
-                    disabled={!!formData.parentSectionId && !editingSection}
                   >
                     <option value="class">Class (Education)</option>
                     <option value="department">Department (Office)</option>
                   </select>
-                  {formData.parentSectionId && !editingSection && (
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Type matches the parent section.
-                    </p>
-                  )}
                 </div>
 
-                {!editingSection && !formData.parentSectionId && (
-                  <div className="rounded-xl border border-dashed border-indigo-200 dark:border-indigo-800 p-4 bg-indigo-50/50 dark:bg-indigo-950/20">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                {!editingSection && (
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="needSubclasses"
+                      checked={formData.needSubclasses}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFormData({
+                          ...formData,
+                          needSubclasses: checked,
+                          subclasses: checked ? [defaultSubclass()] : [],
+                        });
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="needSubclasses" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Need Subclasses
+                    </label>
+                  </div>
+                )}
+
+                {!editingSection && formData.needSubclasses && (
+                  <div
+                    className="overflow-hidden transition-all duration-300 ease-out rounded-xl border-2 border-indigo-200 dark:border-indigo-800 p-5 bg-indigo-50/50 dark:bg-indigo-950/20"
+                  >
+                    <div className="flex justify-between items-center mb-4">
                       <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                        Subsections (optional)
+                        Subclasses
                       </h3>
                       <button
                         type="button"
                         onClick={() =>
                           setFormData((prev) => ({
                             ...prev,
-                            subsectionNames: [...(prev.subsectionNames || []), ''],
+                            subclasses: [...(prev.subclasses || []), defaultSubclass()],
                           }))
                         }
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                        className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
                       >
-                        + Add subsection row
+                        + Add Another Subclass
                       </button>
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                      After the main section is saved, these are created as subsections with the same type and
-                      schedule as above.
-                    </p>
-                    {(formData.subsectionNames || []).length === 0 ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 italic">No extra subsections.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {(formData.subsectionNames || []).map((name, idx) => (
-                          <li key={idx} className="flex gap-2 items-center">
-                            <input
-                              type="text"
-                              value={name}
-                              onChange={(e) => {
-                                const next = [...(formData.subsectionNames || [])];
-                                next[idx] = e.target.value;
-                                setFormData({ ...formData, subsectionNames: next });
-                              }}
-                              className={inputClass}
-                              placeholder={`Subsection name ${idx + 1}`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const next = (formData.subsectionNames || []).filter((_, i) => i !== idx);
-                                setFormData({ ...formData, subsectionNames: next });
-                              }}
-                              className="shrink-0 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                            >
-                              Remove
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                    {errors.subclasses && (
+                      <p className="mb-3 text-sm text-red-500">{errors.subclasses}</p>
                     )}
+                    <div className="space-y-4">
+                      {(formData.subclasses || []).map((sub, idx) => (
+                        <div
+                          key={idx}
+                          className="p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm transition-opacity duration-200"
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                              Subclass {idx + 1}
+                            </span>
+                            {(formData.subclasses || []).length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = (formData.subclasses || []).filter((_, i) => i !== idx);
+                                  setFormData({ ...formData, subclasses: next });
+                                }}
+                                className="text-sm text-red-600 hover:text-red-700 dark:text-red-400"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                              <label className={labelClass}>Subclass Name</label>
+                              <input
+                                type="text"
+                                value={sub.name}
+                                onChange={(e) => {
+                                  const next = [...(formData.subclasses || [])];
+                                  next[idx] = { ...next[idx], name: e.target.value };
+                                  setFormData({ ...formData, subclasses: next });
+                                }}
+                                className={inputClass}
+                                placeholder="e.g. A, B, or Morning Batch"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass}>Start Time</label>
+                              <TimePickerField
+                                value={sub.startTime}
+                                onChange={(v) => {
+                                  const next = [...(formData.subclasses || [])];
+                                  next[idx] = { ...next[idx], startTime: v };
+                                  setFormData({ ...formData, subclasses: next });
+                                }}
+                                placeholder="08:00"
+                                hasError={!!errors[`subclass_${idx}`]}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass}>End Time</label>
+                              <TimePickerField
+                                value={sub.endTime}
+                                onChange={(v) => {
+                                  const next = [...(formData.subclasses || [])];
+                                  next[idx] = { ...next[idx], endTime: v };
+                                  setFormData({ ...formData, subclasses: next });
+                                }}
+                                placeholder="10:00"
+                                hasError={!!errors[`subclass_${idx}`]}
+                              />
+                              {errors[`subclass_${idx}`] && (
+                                <p className="mt-1 text-sm text-red-500">{errors[`subclass_${idx}`]}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {editingSection && editingSection.parentSectionId == null && (
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="hasSubclassesEdit"
+                      checked={formData.hasSubclasses}
+                      onChange={(e) => setFormData({ ...formData, hasSubclasses: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="hasSubclassesEdit" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Enable Subclasses
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      (Cannot disable while subclasses exist)
+                    </p>
                   </div>
                 )}
 
@@ -436,9 +523,10 @@ const SectionManagement = () => {
             </div>
           )}
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Section Hierarchy</h2>
             {rootSections.map((section) => (
-              <div key={section._id} className="space-y-3">
+              <div key={section._id} className="space-y-2">
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex flex-wrap gap-2 items-center">
@@ -451,17 +539,17 @@ const SectionManagement = () => {
                       >
                         {section.sectionType === 'class' ? 'Class' : 'Department'}
                       </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Top-level</span>
+                      {section.hasSubclasses && (
+                        <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Container</span>
+                      )}
                     </div>
                     <div className="flex gap-2 flex-wrap">
-                      {section.sectionType === 'class' && (
-                        <Link
-                          to={`/admin/sections/${section._id}`}
-                          className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
-                        >
-                          Manage
-                        </Link>
-                      )}
+                      <Link
+                        to={`/admin/sections/${section._id}`}
+                        className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                      >
+                        Manage
+                      </Link>
                       <button
                         onClick={() => handleEdit(section)}
                         className="text-blue-600 hover:text-blue-700 text-sm font-medium"
@@ -488,63 +576,46 @@ const SectionManagement = () => {
                     </p>
                   )}
                 </div>
-                {childrenOf(section._id).map((child) => (
-                  <div
-                    key={child._id}
-                    className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow border border-gray-200 dark:border-gray-700 ml-4 border-l-4 border-l-indigo-400"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <span
-                          className={`px-2 py-1 text-xs font-medium rounded ${
-                            child.sectionType === 'class'
-                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
-                              : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400'
-                          }`}
-                        >
-                          {child.sectionType === 'class' ? 'Class' : 'Department'}
-                        </span>
-                        <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Subsection</span>
-                      </div>
-                      <div className="flex gap-2 flex-wrap">
-                        {child.sectionType === 'class' && (
-                          <Link
-                            to={`/admin/sections/${child._id}`}
-                            className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
-                          >
-                            Manage
-                          </Link>
-                        )}
-                        <button
-                          onClick={() => handleEdit(child)}
-                          className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(child)}
-                          className="text-red-600 hover:text-red-700 text-sm font-medium"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                      {child.sectionName}
-                    </h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                      Under: {section.sectionName}
+                {childrenOf(section._id).length > 0 && (
+                  <div className="ml-6 pl-4 border-l-4 border-l-indigo-400 space-y-2">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-2">
+                      ├── Subclasses
                     </p>
-                    {(child.startTime || child.endTime) && (
-                      <p className="text-xs text-gray-500">
-                        {child.startTime || '–'} – {child.endTime || '–'}
-                        {child.startDate || child.endDate
-                          ? ` · ${child.startDate || '–'} to ${child.endDate || '–'}`
-                          : ''}
-                      </p>
-                    )}
+                    {childrenOf(section._id).map((child) => (
+                      <div
+                        key={child._id}
+                        className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border border-gray-200 dark:border-gray-700"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-semibold text-gray-900 dark:text-white">{child.sectionName}</h4>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Under: {section.sectionName}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Link
+                              to={`/admin/sections/${child._id}`}
+                              className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                            >
+                              Manage
+                            </Link>
+                            <button
+                              onClick={() => handleEdit(child)}
+                              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(child)}
+                              className="text-red-600 hover:text-red-700 text-sm font-medium"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             ))}
           </div>

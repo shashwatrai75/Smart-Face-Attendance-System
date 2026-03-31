@@ -44,6 +44,10 @@ const sectionSchema = new mongoose.Schema(
       ref: 'Section',
       default: null,
     },
+    hasSubclasses: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

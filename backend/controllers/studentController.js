@@ -47,6 +47,11 @@ const enrollStudent = async (req, res, next) => {
         .status(400)
         .json({ error: 'Students can only be enrolled in class-type sections' });
     }
+    if (section.hasSubclasses) {
+      return res
+        .status(400)
+        .json({ error: 'Students cannot be enrolled in a container section. Enroll in a subclass instead.' });
+    }
 
     const existingStudent = await Student.findOne({ rollNo, sectionId });
     if (existingStudent) {

@@ -97,6 +97,10 @@ export const createSection = (sectionData) => {
   return axiosClient.post('/sections', sectionData);
 };
 
+export const createSubsection = (parentId, sectionName) => {
+  return axiosClient.post(`/sections/${parentId}/subsections`, { sectionName });
+};
+
 export const getSections = () => {
   return axiosClient.get('/sections');
 };

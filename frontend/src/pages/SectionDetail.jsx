@@ -6,6 +6,7 @@ import {
   createClassSession,
   updateClassSession,
   deleteClassSession,
+  createSubsection,
   getUsers,
 } from '../api/api';
 import Navbar from '../components/Navbar';
@@ -26,6 +27,8 @@ const SectionDetail = () => {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingSession, setEditingSession] = useState(null);
+  const [showSubclassModal, setShowSubclassModal] = useState(false);
+  const [subclassName, setSubclassName] = useState('');
   const [formData, setFormData] = useState({
     sessionName: '',
     subject: '',
@@ -100,6 +103,24 @@ const SectionDetail = () => {
     setShowForm(true);
   };
 
+  const handleAddSubclass = async (e) => {
+    e.preventDefault();
+    const name = subclassName.trim();
+    if (!name) {
+      setToast({ message: 'Subclass name is required', type: 'error' });
+      return;
+    }
+    try {
+      await createSubsection(id, name);
+      setToast({ message: 'Subclass added', type: 'success' });
+      setShowSubclassModal(false);
+      setSubclassName('');
+      fetchData();
+    } catch (err) {
+      setToast({ message: err.error || 'Failed to add subclass', type: 'error' });
+    }
+  };
+
   const handleDelete = (s) => {
     setConfirmDialog({
       message: `Delete "${s.sessionName}"?`,
@@ -164,13 +185,20 @@ const SectionDetail = () => {
             ← Back to Sections
           </Link>
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg mb-8 border border-gray-200 dark:border-gray-700">
-            <span
-              className={`inline-block px-2 py-1 text-xs font-medium rounded mb-2 ${
-                isClassSection ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'
-              }`}
-            >
-              {isClassSection ? 'Class Section' : 'Department Section'}
-            </span>
+            <div className="flex flex-wrap gap-2 items-center mb-2">
+              <span
+                className={`inline-block px-2 py-1 text-xs font-medium rounded ${
+                  isClassSection ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'
+                }`}
+              >
+                {isClassSection ? 'Class Section' : 'Department Section'}
+              </span>
+              {section.hasSubclasses && (
+                <span className="px-2 py-1 text-xs font-medium rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                  Container
+                </span>
+              )}
+            </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
               {section.sectionName}
             </h1>
@@ -184,7 +212,68 @@ const SectionDetail = () => {
             )}
           </div>
 
-          {isClassSection && (
+          {section.hasSubclasses && (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg mb-8 border border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Subclasses</h2>
+                <button
+                  onClick={() => setShowSubclassModal(true)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
+                >
+                  + Add Subclass
+                </button>
+              </div>
+              {showSubclassModal && (
+                <form onSubmit={handleAddSubclass} className="mb-6 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20">
+                  <h3 className="text-sm font-semibold mb-2">New Subclass</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    <input
+                      type="text"
+                      value={subclassName}
+                      onChange={(e) => setSubclassName(e.target.value)}
+                      className="flex-1 min-w-[120px] px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                      placeholder="e.g. A, B, C or Morning Batch"
+                      autoFocus
+                    />
+                    <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSubclassModal(false);
+                        setSubclassName('');
+                      }}
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+              <div className="space-y-2">
+                {(section.subsections || []).map((sub) => (
+                  <div
+                    key={sub._id}
+                    className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30"
+                  >
+                    <span className="font-medium text-gray-900 dark:text-white">{sub.sectionName}</span>
+                    <Link
+                      to={`/admin/sections/${sub._id}`}
+                      className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                    >
+                      Manage →
+                    </Link>
+                  </div>
+                ))}
+                {(section.subsections || []).length === 0 && !showSubclassModal && (
+                  <p className="text-gray-500 py-4 text-center">No subclasses yet. Click &quot;Add Subclass&quot; to create one.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isClassSection && !section.hasSubclasses && (
             <>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Class Sessions</h2>
@@ -326,7 +415,7 @@ const SectionDetail = () => {
             </>
           )}
 
-          {!isClassSection && (
+          {!isClassSection && !section.hasSubclasses && (
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700">
               <p className="text-gray-600">
                 Department sections use check-in/check-out attendance. Go to Live Attendance and select a department section.

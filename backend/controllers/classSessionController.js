@@ -55,6 +55,11 @@ const createClassSession = async (req, res, next) => {
         error: 'Class sessions can only be created for class-type sections',
       });
     }
+    if (section.hasSubclasses) {
+      return res.status(400).json({
+        error: 'Class sessions cannot be created on a container section. Use a subclass instead.',
+      });
+    }
 
     const startM = timeToMinutes(startTime);
     const endM = timeToMinutes(endTime);
