@@ -19,7 +19,9 @@ const MemberDashboard = () => {
   const fetchSections = async () => {
     try {
       const response = await getSections();
-      const list = (response.sections || []).filter((s) => s.sectionType === 'class');
+      const list = (response.sections || []).filter(
+        (s) => s.sectionType === 'class' && (s.parentSectionId || !s.hasSubclasses)
+      );
       setSections(list);
     } catch (err) {
       setToast({ message: 'Failed to load sections', type: 'error' });

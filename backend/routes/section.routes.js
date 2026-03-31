@@ -6,6 +6,7 @@ const authorizeSuperadmin = require('../middleware/superadminMiddleware');
 const { apiLimiter } = require('../middleware/rateLimit');
 const {
   createSection,
+  createSubsection,
   getSections,
   getSectionById,
   updateSection,
@@ -22,6 +23,7 @@ router.use(authenticate);
 router.use(apiLimiter);
 
 router.post('/', authorize('admin', 'superadmin'), createSection);
+router.post('/:id/subsections', authorize('admin', 'superadmin'), createSubsection);
 router.get('/', getSections);
 router.get('/:id', getSectionById);
 router.put('/:id', authorize('admin', 'superadmin'), updateSection);

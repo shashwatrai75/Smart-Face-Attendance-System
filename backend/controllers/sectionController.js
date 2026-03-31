@@ -29,32 +29,52 @@ const createSection = async (req, res, next) => {
   try {
     const {
       sectionName,
-      sectionType: bodySectionType,
+      sectionType,
       startDate,
       endDate,
       startTime,
       endTime,
       description,
-      parentSectionId,
-      subsections,
+      hasSubclasses,
+      subclasses,
     } = req.body;
-
-    let parent = null;
-    let sectionType = bodySectionType;
-
-    if (parentSectionId) {
-      parent = await Section.findById(parentSectionId);
-      if (!parent) {
-        return res.status(400).json({ error: 'Parent section not found' });
-      }
-      if (parent.parentSectionId) {
-        return res.status(400).json({ error: 'Subsections can only be created under a top-level section' });
-      }
-      sectionType = parent.sectionType;
-    }
 
     if (!sectionName || !sectionType) {
       return res.status(400).json({ error: 'Section name and type are required' });
+    }
+
+    const needSubclasses = hasSubclasses === true;
+    const subclassList = Array.isArray(subclasses) ? subclasses : [];
+
+    if (needSubclasses) {
+      if (subclassList.length === 0) {
+        return res.status(400).json({ error: 'At least one subclass is required when "Need Subclasses" is checked' });
+      }
+      const names = subclassList
+        .map((s) => (typeof s.name === 'string' ? s.name.trim() : ''))
+        .filter(Boolean);
+      if (names.length !== subclassList.length) {
+        return res.status(400).json({ error: 'Each subclass must have a name' });
+      }
+      const seen = new Set();
+      for (const n of names) {
+        const lower = n.toLowerCase();
+        if (seen.has(lower)) {
+          return res.status(400).json({ error: `Duplicate subclass name: "${n}"` });
+        }
+        seen.add(lower);
+      }
+      for (const sub of subclassList) {
+        const st = sub.startTime || sub.start_time;
+        const et = sub.endTime || sub.end_time;
+        if (st && et) {
+          const startM = timeToMinutes(st);
+          const endM = timeToMinutes(et);
+          if (Number.isNaN(startM) || Number.isNaN(endM) || startM >= endM) {
+            return res.status(400).json({ error: `Subclass "${sub.name || ''}": end time must be after start time` });
+          }
+        }
+      }
     }
 
     const scheduleErr = validateSectionSchedule(sectionType, startDate, endDate, startTime, endTime);
@@ -62,7 +82,7 @@ const createSection = async (req, res, next) => {
       return res.status(400).json({ error: scheduleErr });
     }
 
-    const baseFields = {
+    const section = await Section.create({
       sectionName: sectionName.trim(),
       sectionType,
       startDate: startDate || undefined,
@@ -70,26 +90,27 @@ const createSection = async (req, res, next) => {
       startTime: startTime || undefined,
       endTime: endTime || undefined,
       description: description ? String(description).trim() || undefined : undefined,
-      parentSectionId: parentSectionId || undefined,
-    };
-
-    const section = await Section.create(baseFields);
+      parentSectionId: undefined,
+      hasSubclasses: needSubclasses,
+    });
 
     const createdSubsections = [];
-    if (!parentSectionId && Array.isArray(subsections) && subsections.length > 0) {
-      for (const sub of subsections) {
-        const name = typeof sub.sectionName === 'string' ? sub.sectionName.trim() : '';
+    if (needSubclasses && subclassList.length > 0) {
+      for (const sub of subclassList) {
+        const name = typeof sub.name === 'string' ? sub.name.trim() : '';
         if (!name) continue;
-        const subDesc = sub.description != null ? String(sub.description).trim() : '';
+        const subStartTime = sub.startTime || sub.start_time || undefined;
+        const subEndTime = sub.endTime || sub.end_time || undefined;
         const child = await Section.create({
           sectionName: name,
           sectionType,
-          startDate: sub.startDate || baseFields.startDate,
-          endDate: sub.endDate || baseFields.endDate,
-          startTime: sub.startTime || baseFields.startTime,
-          endTime: sub.endTime || baseFields.endTime,
-          description: subDesc || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          startTime: subStartTime,
+          endTime: subEndTime,
+          description: description ? String(description).trim() || undefined : undefined,
           parentSectionId: section._id,
+          hasSubclasses: false,
         });
         createdSubsections.push(child);
       }
@@ -97,8 +118,57 @@ const createSection = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      section,
-      subsections: createdSubsections.length ? createdSubsections : undefined,
+      section: { ...section.toObject(), subsections: createdSubsections },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createSubsection = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { sectionName } = req.body;
+
+    const parent = await Section.findById(id);
+    if (!parent) {
+      return res.status(404).json({ error: 'Parent section not found' });
+    }
+    if (!parent.hasSubclasses) {
+      return res.status(400).json({ error: 'Parent section does not allow subclasses. Enable subclasses first.' });
+    }
+    if (parent.parentSectionId) {
+      return res.status(400).json({ error: 'Can only add subclasses to a top-level section' });
+    }
+
+    const name = typeof sectionName === 'string' ? sectionName.trim() : '';
+    if (!name) {
+      return res.status(400).json({ error: 'Subclass name is required' });
+    }
+
+    const existing = await Section.findOne({
+      parentSectionId: parent._id,
+      sectionName: { $regex: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    });
+    if (existing) {
+      return res.status(400).json({ error: `A subclass named "${name}" already exists under this parent` });
+    }
+
+    const child = await Section.create({
+      sectionName: name,
+      sectionType: parent.sectionType,
+      startDate: parent.startDate,
+      endDate: parent.endDate,
+      startTime: parent.startTime,
+      endTime: parent.endTime,
+      description: parent.description,
+      parentSectionId: parent._id,
+      hasSubclasses: false,
+    });
+
+    res.status(201).json({
+      success: true,
+      section: child,
     });
   } catch (error) {
     next(error);
@@ -117,15 +187,11 @@ const getSections = async (req, res, next) => {
       if (user.sectionId) {
         query._id = user.sectionId;
       }
+      // If no sectionId assigned, show all departments so Supervisor can use Employee Face Scan, Enroll, etc.
     }
     // admin and superadmin: no filter, see both class and department
 
-    let sections;
-    if (user.role === 'hr' && !user.sectionId) {
-      sections = [];
-    } else {
-      sections = await Section.find(query).sort({ createdAt: -1 });
-    }
+    const sections = await Section.find(query).sort({ createdAt: -1 });
 
     res.json({
       success: true,
@@ -163,6 +229,9 @@ const getSectionById = async (req, res, next) => {
     if (section.sectionType === 'department') {
       result.members = await SectionMember.find({ sectionId: id }).populate('userId', 'name email');
     }
+    if (section.hasSubclasses) {
+      result.subsections = await Section.find({ parentSectionId: id }).sort({ sectionName: 1 });
+    }
 
     res.json({
       success: true,
@@ -176,11 +245,20 @@ const getSectionById = async (req, res, next) => {
 const updateSection = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { sectionName, sectionType, startDate, endDate, startTime, endTime, description } = req.body;
+    const { sectionName, sectionType, startDate, endDate, startTime, endTime, description, hasSubclasses } = req.body;
 
     const section = await Section.findById(id);
     if (!section) {
       return res.status(404).json({ error: 'Section not found' });
+    }
+
+    if (hasSubclasses === false) {
+      const childCount = await Section.countDocuments({ parentSectionId: id });
+      if (childCount > 0) {
+        return res.status(400).json({
+          error: 'Cannot disable subclasses while subclasses exist. Delete or move them first.',
+        });
+      }
     }
 
     const type = sectionType !== undefined ? sectionType : section.sectionType;
@@ -205,6 +283,7 @@ const updateSection = async (req, res, next) => {
     if (startTime !== undefined) updates.startTime = startTime;
     if (endTime !== undefined) updates.endTime = endTime;
     if (description !== undefined) updates.description = description;
+    if (hasSubclasses !== undefined && !section.parentSectionId) updates.hasSubclasses = hasSubclasses === true;
 
     const updatedSection = await Section.findByIdAndUpdate(id, updates, {
       new: true,
@@ -260,6 +339,11 @@ const addSectionMember = async (req, res, next) => {
       return res.status(404).json({ error: 'Section not found' });
     }
 
+    if (section.hasSubclasses) {
+      return res.status(400).json({
+        error: 'Cannot add members to a container section. Assign members to its subclasses instead.',
+      });
+    }
     if (section.sectionType !== 'department') {
       return res.status(400).json({ error: 'Can only add members to department sections' });
     }
@@ -298,6 +382,7 @@ const removeSectionMember = async (req, res, next) => {
 
 module.exports = {
   createSection,
+  createSubsection,
   getSections,
   getSectionById,
   updateSection,

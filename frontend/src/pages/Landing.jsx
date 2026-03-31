@@ -1,6 +1,12 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import FaceScanOverlay from '../components/FaceScanOverlay';
 
 const Landing = () => {
+  const navigate = useNavigate();
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [statusText, setStatusText] = useState('Initializing AI Face Recognition...');
+
   const features = [
     {
       title: 'AI-Based Face Recognition',
@@ -66,8 +72,29 @@ const Landing = () => {
     { num: 4, title: 'Attendance Recorded Securely', description: 'Stored with encryption' },
   ];
 
+  useEffect(() => {
+    if (!isLaunching) return;
+
+    const timers = [
+      window.setTimeout(() => setStatusText('Mapping facial features...'), 1000),
+      window.setTimeout(() => setStatusText('Verification successful'), 2000),
+      window.setTimeout(() => navigate('/login'), 3000),
+    ];
+
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [isLaunching, navigate]);
+
+  const handleLaunch = () => {
+    if (isLaunching) return;
+    setStatusText('Initializing AI Face Recognition...');
+    setIsLaunching(true);
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
+      {isLaunching && <FaceScanOverlay statusText={statusText} />}
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -99,15 +126,17 @@ const Landing = () => {
             Automate attendance with real-time facial recognition, liveness detection, offline support, and role-based access control.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/login"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-indigo-600 rounded-xl font-semibold hover:bg-blue-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5"
+            <button
+              type="button"
+              onClick={handleLaunch}
+              disabled={isLaunching}
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-indigo-600 rounded-xl font-semibold hover:bg-blue-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               Launch System
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
               </svg>
-            </Link>
+            </button>
             <Link
               to="/about"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 border-2 border-white/80 text-white rounded-xl font-semibold hover:bg-white/15 transition-all backdrop-blur-sm"

@@ -20,6 +20,7 @@ const StudentEnrollment = () => {
   const [faceImages, setFaceImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [allSections, setAllSections] = useState([]);
 
   useEffect(() => {
     fetchSections();
@@ -29,7 +30,10 @@ const StudentEnrollment = () => {
     try {
       const response = await getSections();
       const all = response.sections || [];
-      const classSections = all.filter((s) => s.sectionType === 'class');
+      setAllSections(all);
+      const classSections = all.filter(
+        (s) => s.sectionType === 'class' && (s.parentSectionId || !s.hasSubclasses)
+      );
       setSections(classSections);
     } catch (err) {
       setToast({ message: 'Failed to load sections', type: 'error' });
@@ -132,11 +136,16 @@ const StudentEnrollment = () => {
                     required
                   >
                     <option value="">Select Section</option>
-                    {sections.map((sec) => (
-                      <option key={sec._id || sec.id} value={sec._id || sec.id}>
-                        {sec.sectionName}
-                      </option>
-                    ))}
+                    {sections.map((sec) => {
+                      const parentId = (sec.parentSectionId?._id || sec.parentSectionId)?.toString();
+                      const parent = parentId && allSections.find((s) => (s._id || s.id)?.toString() === parentId);
+                      const label = parent ? `${parent.sectionName} › ${sec.sectionName}` : sec.sectionName;
+                      return (
+                        <option key={sec._id || sec.id} value={sec._id || sec.id}>
+                          {label}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div>
