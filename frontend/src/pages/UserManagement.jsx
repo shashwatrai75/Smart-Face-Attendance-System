@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
 import { getUsers, updateUserStatus, updateUser, deleteUser, updateUserNotes, updateUserTags, verifyUser, getUserActivity, uploadUserImage } from '../api/api';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
-import Loader from '../components/Loader';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useNavigate } from 'react-router-dom';
@@ -22,6 +19,12 @@ import {
   LineChart,
   Line,
 } from 'recharts';
+import DashboardLayout from '../components/dashboard/DashboardLayout';
+import Pagination from '../components/table/Pagination';
+import PageHeader from '../components/userManagement/PageHeader';
+import UMStatCard from '../components/userManagement/UMStatCard';
+import { RoleBadge, StatusBadge } from '../components/userManagement/Badge';
+import { ActionIconButton, EditIcon, EyeIcon, SearchIcon, TableSkeleton, TrashIcon } from '../components/userManagement/TableBits';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -653,23 +656,8 @@ const UserManagement = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen page-bg">
-        <Navbar />
-        <div className="flex">
-          <Sidebar />
-          <main className="flex-1 p-8 flex items-center justify-center">
-            <Loader />
-          </main>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen page-bg">
-      <Navbar />
+    <DashboardLayout pageTitle="User Management">
       {toast && (
         <Toast
           message={toast.message}
@@ -1069,119 +1057,76 @@ const UserManagement = () => {
           </div>
         </div>
       )}
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-              <p className="text-gray-600 mt-1">Manage and monitor all system users</p>
-            </div>
-            <div className="flex gap-3">
+      <div className="space-y-6">
+        <PageHeader
+          title="User Management"
+          subtitle="Manage and monitor system users"
+          actions={
+            <>
               <button
+                type="button"
                 onClick={exportToCSV}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-100 dark:hover:bg-white/5"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Export CSV
+                Export
               </button>
               <button
-                onClick={handlePrint}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                Print
-              </button>
-              <label className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2 cursor-pointer">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                Import CSV
-                <input type="file" accept=".csv" onChange={handleImportUsers} className="hidden" />
-              </label>
-              <button
+                type="button"
                 onClick={() => navigate('/admin/register')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-md"
+                className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-indigo-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-purple-400/60"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Create User
+                + Add User
               </button>
-            </div>
-          </div>
+            </>
+          }
+        />
 
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-4 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm font-medium">Total Users</p>
-                  <p className="text-3xl font-bold mt-1">{stats.total}</p>
-                </div>
-                <div className="bg-white bg-opacity-20 rounded-full p-3">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-4 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm font-medium">Active</p>
-                  <p className="text-3xl font-bold mt-1">{stats.active}</p>
-                </div>
-                <div className="bg-white bg-opacity-20 rounded-full p-3">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-lg p-4 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-red-100 text-sm font-medium">Disabled</p>
-                  <p className="text-3xl font-bold mt-1">{stats.disabled}</p>
-                </div>
-                <div className="bg-white bg-opacity-20 rounded-full p-3">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-4 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-purple-100 text-sm font-medium">Office Admins</p>
-                  <p className="text-3xl font-bold mt-1">{stats.admins}</p>
-                </div>
-                <div className="bg-white bg-opacity-20 rounded-full p-3">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg shadow-lg p-4 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-indigo-100 text-sm font-medium">Members</p>
-                  <p className="text-3xl font-bold mt-1">{stats.members}</p>
-                </div>
-                <div className="bg-white bg-opacity-20 rounded-full p-3">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <UMStatCard
+              label="Total Users"
+              value={stats.total}
+              tone="indigo"
+              icon={
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0Z" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M4 20a8 8 0 0 1 16 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              }
+            />
+            <UMStatCard
+              label="Active"
+              value={stats.active}
+              tone="green"
+              icon={
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" stroke="currentColor" strokeWidth="1.6" />
+                </svg>
+              }
+            />
+            <UMStatCard
+              label="Disabled"
+              value={stats.disabled}
+              tone="red"
+              icon={
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M18.4 18.4A9 9 0 0 0 5.6 5.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  <path d="M5.6 18.4A9 9 0 0 0 18.4 5.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              }
+            />
+            <UMStatCard
+              label="Members"
+              value={stats.members}
+              tone="purple"
+              icon={
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 21v-1a5 5 0 0 1 10 0v1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" strokeWidth="1.6" />
+                </svg>
+              }
+            />
           </div>
 
           {/* Additional Metrics Row */}
@@ -1232,132 +1177,123 @@ const UserManagement = () => {
             </div>
           </div>
 
-          {/* Search and Filters */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">🔍 Search Users</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by name, email, phone, or city..."
-                    className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <svg className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+          {/* Filter Bar */}
+          <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 lg:flex-1">
+                <div className="lg:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">Search</label>
+                  <div className="relative mt-1">
+                    <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-300/50">
+                      <SearchIcon className="h-4 w-4" />
+                    </div>
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      placeholder="Search by name, email, phone, or city…"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-10 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm outline-none transition-all focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100 dark:placeholder:text-slate-400/60"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">Role</label>
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => {
+                      setRoleFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+                  >
+                    <option value="all">All Roles</option>
+                    {isSuperadmin && <option value="superadmin">Superadmin</option>}
+                    {isSuperadmin && <option value="admin">Office Admin</option>}
+                    {isSuperadmin && <option value="hr">Supervisor</option>}
+                    <option value="member">Member</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">Status</label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Role</label>
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Roles</option>
-                  {isSuperadmin && <option value="superadmin">Superadmin</option>}
-                  {isSuperadmin && <option value="admin">Office Admin</option>}
-                  {isSuperadmin && <option value="hr">Supervisor</option>}
-                  <option value="member">Member</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Status</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="disabled">Disabled</option>
-                </select>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-4 flex-wrap">
-                <label className="text-sm font-medium text-gray-700">Sort by:</label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="name">Name</option>
-                  <option value="email">Email</option>
-                  <option value="role">Role</option>
-                  <option value="status">Status</option>
-                  <option value="createdAt">Created Date</option>
-                </select>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300/70">Sort</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+                  >
+                    <option value="name">Name</option>
+                    <option value="email">Email</option>
+                    <option value="role">Role</option>
+                    <option value="status">Status</option>
+                    <option value="createdAt">Created Date</option>
+                  </select>
+                </div>
                 <button
+                  type="button"
                   onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                  className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100 dark:hover:bg-white/5"
+                  title="Toggle sort order"
                 >
-                  {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+                  {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
                 </button>
-                <label className="text-sm font-medium text-gray-700">Items per page:</label>
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="5">5</option>
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">View:</span>
-                <button
-                  onClick={() => setViewMode('table')}
-                  className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  title="Table View"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setViewMode('cards')}
-                  className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  title="Card View"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300/70">Rows</label>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-purple-400/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+                  >
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </div>
               </div>
             </div>
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{startIndex + 1}</span> to{' '}
-                <span className="font-semibold text-gray-900">{Math.min(endIndex, filteredUsers.length)}</span> of{' '}
-                <span className="font-semibold text-gray-900">{filteredUsers.length}</span> users
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-slate-600 dark:text-slate-300/70">
+                Showing <span className="font-semibold text-slate-900 dark:text-white">{startIndex + 1}</span>–{' '}
+                <span className="font-semibold text-slate-900 dark:text-white">{Math.min(endIndex, filteredUsers.length)}</span> of{' '}
+                <span className="font-semibold text-slate-900 dark:text-white">{filteredUsers.length}</span> users
                 {filteredUsers.length !== users.length && (
-                  <span className="text-blue-600 ml-2">(filtered from {users.length} total)</span>
+                  <span className="ml-2 text-indigo-600 dark:text-indigo-300">(filtered from {users.length})</span>
                 )}
               </div>
-              {selectedUsers.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">
-                    <span className="font-semibold text-blue-600">{selectedUsers.length}</span> selected
-                  </span>
-                  <button
-                    onClick={() => setSelectedUsers([])}
-                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                  >
-                    Clear Selection
-                  </button>
-                </div>
+              {selectedUsers.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedUsers([])}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100 dark:hover:bg-white/5"
+                >
+                  Clear selection ({selectedUsers.length})
+                </button>
+              ) : (
+                <span className="text-xs text-slate-500 dark:text-slate-300/70">Select rows for bulk actions</span>
               )}
             </div>
           </div>
@@ -1396,20 +1332,21 @@ const UserManagement = () => {
           )}
           {viewMode === 'table' ? (
             <>
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+              <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden dark:border-white/10 dark:bg-slate-900/40">
+                <div className="overflow-x-auto">
+                <table className="min-w-[980px] w-full border-collapse">
+                  <thead className="bg-slate-100 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-300/70">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="w-12 px-4 py-3">
                         <input
                           type="checkbox"
                           checked={selectedUsers.length === paginatedUsers.length && paginatedUsers.length > 0}
                           onChange={handleSelectAll}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-2 focus:ring-purple-400/60 dark:border-white/20 dark:bg-white/5"
                         />
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-4 py-3 cursor-pointer hover:text-slate-700 dark:hover:text-white transition-colors"
                         onClick={() => handleSort('name')}
                       >
                         <div className="flex items-center gap-2">
@@ -1418,7 +1355,7 @@ const UserManagement = () => {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-4 py-3 cursor-pointer hover:text-slate-700 dark:hover:text-white transition-colors"
                         onClick={() => handleSort('email')}
                       >
                         <div className="flex items-center gap-2">
@@ -1427,7 +1364,7 @@ const UserManagement = () => {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-4 py-3 cursor-pointer hover:text-slate-700 dark:hover:text-white transition-colors"
                         onClick={() => handleSort('role')}
                       >
                         <div className="flex items-center gap-2">
@@ -1436,7 +1373,7 @@ const UserManagement = () => {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-4 py-3 cursor-pointer hover:text-slate-700 dark:hover:text-white transition-colors"
                         onClick={() => handleSort('status')}
                       >
                         <div className="flex items-center gap-2">
@@ -1445,7 +1382,7 @@ const UserManagement = () => {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-4 py-3 cursor-pointer hover:text-slate-700 dark:hover:text-white transition-colors"
                         onClick={() => handleSort('lastLogin')}
                       >
                         <div className="flex items-center gap-2">
@@ -1453,20 +1390,23 @@ const UserManagement = () => {
                           {sortBy === 'lastLogin' && (sortOrder === 'asc' ? '↑' : '↓')}
                         </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tags & Notes</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th className="px-4 py-3">Tags & Notes</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  {loading ? (
+                    <TableSkeleton rows={Math.min(10, itemsPerPage)} cols={8} />
+                  ) : (
+                  <tbody className="text-sm text-slate-700 dark:text-slate-200">
                     {filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan="8" className="px-6 py-12 text-center">
+                        <td colSpan="8" className="px-6 py-14 text-center">
                           <div className="flex flex-col items-center">
                             <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                             </svg>
-                            <p className="text-lg font-medium text-gray-900">No users found</p>
-                            <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filters</p>
+                            <p className="text-lg font-semibold text-slate-900 dark:text-white">No users found</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-300/70 mt-1">Try adjusting your search or filters</p>
                           </div>
                         </td>
                       </tr>
@@ -1478,48 +1418,38 @@ const UserManagement = () => {
                           <tr
                             key={userId}
                             onClick={(e) => handleRowClick(user, e)}
-                            className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
+                            className={`cursor-pointer transition-all duration-300 border-t border-slate-200/70 dark:border-white/10 ${isSelected ? 'bg-indigo-50/60 hover:bg-indigo-50 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/15' : 'hover:bg-slate-50 dark:hover:bg-white/[0.04]'
                               }`}
                           >
-                            <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => handleSelectUser(userId)}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-2 focus:ring-purple-400/60 dark:border-white/20 dark:bg-white/5"
                               />
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-semibold">
                                   {user.name?.charAt(0).toUpperCase() || 'U'}
                                 </div>
-                                {user.name}
+                                <div className="min-w-0">
+                                  <div className="truncate font-semibold text-slate-900 dark:text-white">{user.name}</div>
+                                  <div className="truncate text-xs text-slate-500 dark:text-slate-300/70">{user.phone || user.city || '—'}</div>
+                                </div>
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                                {user.role === 'admin' ? 'Office Admin' : user.role === 'hr' ? 'Supervisor' : user.role}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              <span
-                                className={`px-2 py-1 text-xs rounded-full ${user.status === 'active'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
-                                  }`}
-                              >
-                                {user.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-300/80">{user.email}</td>
+                            <td className="px-4 py-4"><RoleBadge role={user.role} /></td>
+                            <td className="px-4 py-4"><StatusBadge status={user.status} /></td>
+                            <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-300/80">
                               {formatLastLogin(user.lastLogin)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <td className="px-4 py-4 text-sm font-medium">
                               <div className="flex items-center gap-2">
                                 {user.verified && (
-                                  <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 flex items-center gap-1">
+                                  <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-400/10 dark:text-indigo-200 flex items-center gap-1">
                                     ✓ Verified
                                   </span>
                                 )}
@@ -1544,19 +1474,33 @@ const UserManagement = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                              <div className="relative inline-block">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setQuickActionsMenu(quickActionsMenu === userId ? null : userId);
+                            <td className="px-4 py-4">
+                              <div className="flex items-center justify-end gap-1">
+                                <ActionIconButton
+                                  title="View"
+                                  tone="primary"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setShowUserDetails(true);
+                                    setEditUserMode(false);
                                   }}
-                                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                 >
-                                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                                  </svg>
-                                </button>
+                                  <EyeIcon className="h-4 w-4" />
+                                </ActionIconButton>
+                                <ActionIconButton
+                                  title="Edit"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setShowUserDetails(true);
+                                    setEditUserMode(true);
+                                    setEditFormData(user);
+                                  }}
+                                >
+                                  <EditIcon className="h-4 w-4" />
+                                </ActionIconButton>
+                                <ActionIconButton title="Delete" tone="danger" onClick={() => handleDeleteUser(user)}>
+                                  <TrashIcon className="h-4 w-4" />
+                                </ActionIconButton>
                               </div>
                             </td>
                           </tr>
@@ -1564,60 +1508,14 @@ const UserManagement = () => {
                       })
                     )}
                   </tbody>
+                  )}
                 </table>
+                </div>
               </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="bg-white px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    <span className="text-sm text-gray-700">
-                      Page <span className="font-semibold">{currentPage}</span> of{' '}
-                      <span className="font-semibold">{totalPages}</span>
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-1 rounded-lg text-sm ${currentPage === pageNum
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <div className="mt-4">
+                <Pagination page={currentPage} pageSize={itemsPerPage} total={filteredUsers.length} onChange={setCurrentPage} />
+              </div>
             </>
           ) : (
             <>
@@ -1771,7 +1669,6 @@ const UserManagement = () => {
               )}
             </>
           )}
-        </main>
       </div>
 
       {/* Notes Modal */}
@@ -2091,7 +1988,7 @@ const UserManagement = () => {
           </div>
         );
       })()}
-    </div>
+    </DashboardLayout>
   );
 };
 

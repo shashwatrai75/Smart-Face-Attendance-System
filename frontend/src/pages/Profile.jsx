@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getProfile, changePassword } from '../api/api';
 import { useAuth } from '../context/AuthContext';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
 import Loader from '../components/Loader';
 import Toast from '../components/Toast';
 import { validatePassword } from '../utils/validators';
+import DashboardLayout from '../components/dashboard/DashboardLayout';
+import PageHeader from '../components/userManagement/PageHeader';
 
 const Profile = () => {
   const { user: authUser, logout, updateUser } = useAuth();
@@ -154,21 +154,16 @@ const Profile = () => {
 
   if (loading && !displayUser) {
     return (
-      <div className="min-h-screen page-bg">
-        <Navbar />
-        <div className="flex">
-          <Sidebar />
-          <main className="flex-1 p-8 flex items-center justify-center">
-            <Loader />
-          </main>
+      <DashboardLayout pageTitle="Profile & Settings">
+        <div className="flex items-center justify-center py-16">
+          <Loader />
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen page-bg">
-      <Navbar />
+    <DashboardLayout pageTitle="Profile & Settings">
       {toast && (
         <Toast
           message={toast.message}
@@ -176,217 +171,189 @@ const Profile = () => {
           onClose={() => setToast(null)}
         />
       )}
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Profile & Settings</h1>
-            <p className="text-gray-600 mt-1">Manage your account settings and preferences</p>
-          </div>
+      <div className="mx-auto w-full max-w-5xl space-y-6">
+        <PageHeader
+          title="Profile & Settings"
+          subtitle="Manage your account settings and security"
+        />
 
-          {/* Profile Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 dark:border dark:border-gray-700 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-8">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-6 flex-1">
-                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-2xl font-bold text-blue-600 shadow-lg overflow-hidden">
-                    {displayUser?.image ? (
-                      <img src={displayUser.image} alt={displayUser.name} className="w-full h-full object-cover" />
-                    ) : (
-                      getInitials(displayUser?.name)
-                    )}
-                  </div>
-                  <div className="flex-1 text-white">
-                    <h2 className="text-2xl font-bold mb-1">{displayUser?.name || 'User'}</h2>
-                    <p className="text-blue-100 mb-2">{displayUser?.email || 'No email'}</p>
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${getRoleBadgeColor(
-                        displayUser?.role
-                      )}`}
-                    >
-                      {displayUser?.role === 'admin' ? 'Office Admin' : displayUser?.role === 'hr' ? 'Supervisor' : (displayUser?.role?.charAt(0).toUpperCase() + displayUser?.role?.slice(1) || 'User')}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="px-5 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
-                  Logout
-                </button>
+        {/* Profile header card */}
+        <div className="rounded-xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-14 w-14 shrink-0 rounded-full bg-slate-900 text-white flex items-center justify-center text-lg font-bold overflow-hidden dark:bg-white dark:text-slate-900">
+                {displayUser?.image ? (
+                  <img src={displayUser.image} alt={displayUser.name} className="h-full w-full object-cover" />
+                ) : (
+                  getInitials(displayUser?.name)
+                )}
               </div>
-            </div>
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Institution</p>
-                  <p className="text-gray-900 font-medium">
-                    {displayUser?.institutionName || 'Not specified'}
-                  </p>
+              <div className="min-w-0">
+                <div className="truncate text-lg font-semibold text-slate-900 dark:text-white">
+                  {displayUser?.name || 'User'}
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Account Status</p>
-                  <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
-                    Active
+                <div className="truncate text-sm text-slate-600 dark:text-slate-300/70">
+                  {displayUser?.email || 'No email'}
+                </div>
+                <div className="mt-2">
+                  <span className={['inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold', getRoleBadgeColor(displayUser?.role)].join(' ')}>
+                    {displayUser?.role === 'admin'
+                      ? 'Office Admin'
+                      : displayUser?.role === 'hr'
+                        ? 'Supervisor'
+                        : displayUser?.role
+                          ? displayUser.role.charAt(0).toUpperCase() + displayUser.role.slice(1)
+                          : 'User'}
                   </span>
                 </div>
-                {displayUser?.guardianName && (
-                  <div>
-                    <p className="text-sm text-gray-600">Guardian Name</p>
-                    <p className="text-gray-900 font-medium">{displayUser.guardianName}</p>
-                  </div>
-                )}
-                {displayUser?.guardianPhone && (
-                  <div>
-                    <p className="text-sm text-gray-600">Guardian Phone</p>
-                    <p className="text-gray-900 font-medium">{displayUser.guardianPhone}</p>
-                  </div>
-                )}
-                {displayUser?.department?.name && (
-                  <div>
-                    <p className="text-sm text-gray-600">Department</p>
-                    <p className="text-gray-900 dark:text-gray-100 font-medium">{displayUser.department.name}</p>
-                  </div>
-                )}
               </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+            >
+              <span aria-hidden="true" className="mr-2 text-[18px] leading-none">🚪</span>
+              Logout
+            </button>
+          </div>
+        </div>
+
+        {/* Profile info card */}
+        <div className="rounded-xl border border-slate-200/70 bg-white p-6 shadow-sm space-y-4 dark:border-white/10 dark:bg-slate-900/40">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="text-[18px] leading-none">👤</span>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Profile Info</h2>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300/70">Name</div>
+              <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{displayUser?.name || '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300/70">Email</div>
+              <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{displayUser?.email || '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300/70">Role</div>
+              <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{displayUser?.role || '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300/70">Institution</div>
+              <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{displayUser?.institutionName || 'Not specified'}</div>
+            </div>
+            {displayUser?.department?.name ? (
+              <div className="md:col-span-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300/70">Department</div>
+                <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{displayUser.department.name}</div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Change password card */}
+        <div className="rounded-xl border border-slate-200/70 bg-white p-6 shadow-sm space-y-4 dark:border-white/10 dark:bg-slate-900/40">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="text-[18px] leading-none">🔒</span>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Change Password</h2>
+          </div>
+
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.oldPassword}
+                  onChange={(e) => handlePasswordChange('oldPassword', e.target.value)}
+                  className={[
+                    'w-full h-11 rounded-lg border px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
+                    passwordErrors.oldPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
+                  ].join(' ')}
+                  placeholder="Enter current password"
+                />
+                {passwordErrors.oldPassword ? (
+                  <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{passwordErrors.oldPassword}</p>
+                ) : null}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                  className={[
+                    'w-full h-11 rounded-lg border px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
+                    passwordErrors.newPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
+                  ].join(' ')}
+                  placeholder="Min. 6 characters"
+                />
+                {passwordErrors.newPassword ? (
+                  <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{passwordErrors.newPassword}</p>
+                ) : null}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                  className={[
+                    'w-full h-11 rounded-lg border px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
+                    passwordErrors.confirmPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
+                  ].join(' ')}
+                  placeholder="Re-enter new password"
+                />
+                {passwordErrors.confirmPassword ? (
+                  <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{passwordErrors.confirmPassword}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={changingPassword}
+              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              {changingPassword ? 'Changing…' : 'Change Password'}
+            </button>
+          </form>
+        </div>
+
+        {/* Account actions */}
+        <div className="rounded-xl border border-slate-200/70 bg-white p-6 shadow-sm space-y-4 dark:border-white/10 dark:bg-slate-900/40">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="text-[18px] leading-none">⚠️</span>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Account Actions</h2>
+          </div>
+
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-200">
+            <div className="font-semibold">Security notice</div>
+            <div className="mt-1 text-amber-800/90 dark:text-amber-200/80">
+              After changing your password, you will be automatically logged out and need to login again with your new password.
             </div>
           </div>
 
-          {/* Settings Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Change Password */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 dark:border dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h3>
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Current Password
-                  </label>
-                  <input
-                    type="password"
-                    value={passwordForm.oldPassword}
-                    onChange={(e) => handlePasswordChange('oldPassword', e.target.value)}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${passwordErrors.oldPassword ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    placeholder="Enter current password"
-                  />
-                  {passwordErrors.oldPassword && (
-                    <p className="mt-1 text-sm text-red-600">{passwordErrors.oldPassword}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    New Password
-                  </label>
-                  <input
-                    type="password"
-                    value={passwordForm.newPassword}
-                    onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${passwordErrors.newPassword ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    placeholder="Enter new password (min. 6 characters)"
-                  />
-                  {passwordErrors.newPassword && (
-                    <p className="mt-1 text-sm text-red-600">{passwordErrors.newPassword}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirm New Password
-                  </label>
-                  <input
-                    type="password"
-                    value={passwordForm.confirmPassword}
-                    onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${passwordErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    placeholder="Confirm new password"
-                  />
-                  {passwordErrors.confirmPassword && (
-                    <p className="mt-1 text-sm text-red-600">{passwordErrors.confirmPassword}</p>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={changingPassword}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400"
-                >
-                  {changingPassword ? 'Changing Password...' : 'Change Password'}
-                </button>
-              </form>
-            </div>
-
-            {/* Account Actions */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 dark:border dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Actions</h3>
-              <div className="space-y-4">
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-start">
-                    <svg
-                      className="w-5 h-5 text-yellow-600 mt-0.5 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                      />
-                    </svg>
-                    <div>
-                      <p className="text-sm font-medium text-yellow-800">
-                        Security Notice
-                      </p>
-                      <p className="text-sm text-yellow-700 mt-1">
-                        After changing your password, you will be automatically logged out and need to login again with your new password.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleLogout}
-                  className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors flex items-center justify-center"
-                >
-                  <svg
-                    className="w-5 h-5 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        </main>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex w-full items-center justify-center rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-rose-700"
+          >
+            <span aria-hidden="true" className="mr-2 text-[18px] leading-none">🚪</span>
+            Logout
+          </button>
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

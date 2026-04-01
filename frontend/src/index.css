@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    font-size: 16px;
+  }
   html.dark {
     color-scheme: dark;
   }
@@ -77,6 +80,20 @@
     animation: authCardFadeUp 520ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
   }
 
+  @keyframes liveRowSlideIn {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .live-row-in {
+    animation: liveRowSlideIn 320ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  }
+
   /* Face scan overlay (Launch System) */
   @keyframes faceFadeIn {
     from {
@@ -134,6 +151,26 @@
     );
     box-shadow: 0 0 28px rgba(34, 211, 238, 0.25);
     animation: faceScanLine 1.55s ease-in-out infinite;
+  }
+
+  /* Enroll screens: full-width scan line */
+  @keyframes scan {
+    0% {
+      top: 0%;
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      top: 100%;
+      opacity: 0.3;
+    }
+  }
+  .animate-scan {
+    position: absolute;
+    animation: scan 2s linear infinite;
+    will-change: top, opacity;
   }
 
   @keyframes faceRadarPulse {

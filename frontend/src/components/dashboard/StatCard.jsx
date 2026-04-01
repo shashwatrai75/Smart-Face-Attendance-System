@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 
-const StatCard = ({ label, value, tone = 'primary', trend }) => {
+const StatCard = ({ label, value, tone = 'primary', trend, icon }) => {
   const toneStyles = {
     primary: 'bg-indigo-500/10 text-indigo-700 ring-indigo-500/15 dark:bg-indigo-400/10 dark:text-indigo-200 dark:ring-indigo-300/15',
     success: 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/15 dark:bg-emerald-400/10 dark:text-emerald-200 dark:ring-emerald-300/15',
@@ -21,18 +21,33 @@ const StatCard = ({ label, value, tone = 'primary', trend }) => {
     <div className="group rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-slate-900/40">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-slate-500 dark:text-slate-300/70">{label}</div>
-          <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+          <div className="text-base font-medium text-slate-600 dark:text-slate-300/70">{label}</div>
+          <div className="mt-2 text-[32px] font-bold tracking-tight text-slate-900 dark:text-white leading-none">
             {value}
           </div>
         </div>
-        <div className={['shrink-0 rounded-2xl p-3 ring-1', toneStyles[tone] || toneStyles.primary].join(' ')}>
-          <div className="h-6 w-6 rounded-lg bg-current/10" />
+        <div
+          className={[
+            'shrink-0 rounded-2xl p-3 ring-1 flex items-center justify-center',
+            toneStyles[tone] || toneStyles.primary,
+          ].join(' ')}
+        >
+          {icon ? (
+            typeof icon === 'string' ? (
+              <span className="text-[22px] leading-none" aria-hidden="true">
+                {icon}
+              </span>
+            ) : (
+              icon
+            )
+          ) : (
+            <div className="h-6 w-6 rounded-lg bg-current/10" />
+          )}
         </div>
       </div>
 
       <div className="mt-4 flex items-center justify-between">
-        <div className={['text-xs font-semibold', trendTone].join(' ')}>
+        <div className={['text-sm font-semibold', trendTone].join(' ')}>
           {typeof trend?.value === 'number' ? (
             <span>
               {trend.value > 0 ? '+' : ''}
@@ -56,6 +71,7 @@ StatCard.propTypes = {
   label: PropTypes.string.isRequired,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   tone: PropTypes.oneOf(['primary', 'success', 'warning', 'danger']),
+  icon: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
   trend: PropTypes.shape({
     value: PropTypes.number,
     label: PropTypes.string,

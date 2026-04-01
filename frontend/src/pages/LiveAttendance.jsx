@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getSections,
@@ -10,15 +10,15 @@ import {
   endSession as endSessionApi,
   recordCheckIn,
   verifyFace,
+  getSessionDetails,
 } from '../api/api';
 import { saveAttendanceOffline } from '../offline/syncService';
 import { useOffline } from '../context/OfflineContext';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
-import Loader from '../components/Loader';
 import Toast from '../components/Toast';
 import { getCurrentTime, getToday } from '../utils/date';
 import { useAuth } from '../context/AuthContext';
+import DashboardLayout from '../components/dashboard/DashboardLayout';
+import PageHeader from '../components/userManagement/PageHeader';
 
 const LiveAttendance = () => {
   const navigate = useNavigate();
@@ -58,6 +58,11 @@ const LiveAttendance = () => {
   const [cameraReady, setCameraReady] = useState(false);
   const [statusText, setStatusText] = useState('Waiting to start...');
   const [isScanning, setIsScanning] = useState(false);
+  const [activeSectionName, setActiveSectionName] = useState('');
+  const [sessionStartedAt, setSessionStartedAt] = useState(null);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  const [liveFeed, setLiveFeed] = useState([]); // [{key,name,time,status}]
 
   useEffect(() => {
     if (!isDepartmentMode) {
@@ -113,6 +118,17 @@ const LiveAttendance = () => {
       setToast({ message: 'Failed to load sections', type: 'error' });
     }
   };
+
+  const resolveSectionName = useCallback(async (secId) => {
+    if (!secId) return;
+    try {
+      const res = await getSectionById(secId);
+      const sec = res?.section;
+      setActiveSectionName(sec?.sectionName || '');
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const stopCamera = () => {
     if (videoRef.current?.srcObject) {
@@ -174,7 +190,9 @@ const LiveAttendance = () => {
         }
         setDepartmentRecords(new Map());
         setIsSessionActive(true);
+        setSessionStartedAt(new Date());
         setStatusText('Camera ready. Click "Scan Face" to check-in/out.');
+        setActiveSectionName('');
         setToast({ message: 'Check-in mode active!', type: 'success' });
       } catch (err) {
         setToast({ message: err.error || 'Failed to start', type: 'error' });
@@ -233,12 +251,15 @@ const LiveAttendance = () => {
       const sessionResponse = await startSession(startPayload);
       setSessionId(sessionResponse.sessionId);
       setResolvedSectionId(sessionResponse.sectionId || sectionIdForStudents);
+      setSessionStartedAt(new Date());
+      resolveSectionName(sessionResponse.sectionId || sectionIdForStudents);
 
       setStatusText('Loading student data...');
       const studentsResponse = await getStudents(sessionResponse.sectionId || sectionIdForStudents);
       setStudents(studentsResponse.students || []);
 
       setAttendanceRecords(new Map());
+      setLiveFeed([]);
       setIsSessionActive(true);
       setStatusText('Camera ready. Click "Scan Face" to recognize students.');
       setToast({ message: 'Attendance session started!', type: 'success' });
@@ -401,6 +422,15 @@ const LiveAttendance = () => {
       return updated;
     });
 
+    setLiveFeed((prev) => {
+      const key = `${studentId}:${Date.now()}`;
+      const next = [
+        { key, studentId, name: fullName, time: new Date().toLocaleTimeString(), status: 'present' },
+        ...prev,
+      ];
+      return next.slice(0, 50);
+    });
+
     const attendanceData = {
       studentId,
       status: 'present',
@@ -445,6 +475,13 @@ const LiveAttendance = () => {
         setToast({
           message,
           type: finalStatus === 'absent' ? 'error' : isLate ? 'warning' : 'success',
+        });
+
+        setLiveFeed((prev) => {
+          if (!prev.length) return prev;
+          const [head, ...rest] = prev;
+          if (head.studentId !== studentId) return prev;
+          return [{ ...head, status: finalStatus }, ...rest];
         });
       } catch (err) {
         const msg = err?.error || err?.response?.data?.error || '';
@@ -521,6 +558,7 @@ const LiveAttendance = () => {
 
     setIsSessionActive(false);
     setSessionId(null);
+    setSessionStartedAt(null);
     setStatusText(isDepartmentMode ? 'Check-in ended' : 'Session ended');
     setToast({
       message: isDepartmentMode ? 'Check-in session ended' : 'Attendance session ended',
@@ -563,299 +601,253 @@ const LiveAttendance = () => {
       ? !!sectionIdParam
       : !!sectionIdParam || !!selectedSectionId;
 
+  // Timer tick (for UI)
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const elapsed = useMemo(() => {
+    if (!isSessionActive || !sessionStartedAt) return '00:00';
+    const ms = nowTick - new Date(sessionStartedAt).getTime();
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const s = String(totalSec % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  }, [isSessionActive, sessionStartedAt, nowTick]);
+
+  // Poll session details for multi-device "realtime"
+  useEffect(() => {
+    if (!isOnline || !sessionId || !isSessionActive || isDepartmentMode) return;
+    let alive = true;
+    const poll = async () => {
+      try {
+        const res = await getSessionDetails(sessionId);
+        const list = Array.isArray(res?.studentAttendance) ? res.studentAttendance : [];
+        setAttendanceRecords((prev) => {
+          const next = new Map(prev);
+          for (const st of list) {
+            const sid = st.studentId || st.id;
+            if (!sid) continue;
+            const existing = next.get(String(sid));
+            const status = (st.status || '').toLowerCase() || existing?.status || 'present';
+            const time = st.timestamp ? String(st.timestamp) : existing?.time || '';
+            next.set(String(sid), {
+              ...(existing || {}),
+              status,
+              time,
+              name: st.studentName || existing?.name,
+              rollNo: st.rollNo || existing?.rollNo,
+              lastScanTime: st.lastScanTime ? new Date(st.lastScanTime) : existing?.lastScanTime,
+              consecutiveLateCount: st.consecutiveLateCount || existing?.consecutiveLateCount || 0,
+            });
+          }
+          return next;
+        });
+      } catch {
+        // ignore transient errors
+      }
+    };
+    const id = window.setInterval(() => {
+      if (!alive) return;
+      poll();
+    }, 4000);
+    poll();
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [isOnline, sessionId, isSessionActive, isDepartmentMode]);
+
   return (
-    <div className="min-h-screen page-bg">
-      <Navbar />
+    <DashboardLayout pageTitle="Live Attendance">
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold mb-4">Live Attendance Session</h1>
-
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
-              <div className="flex flex-wrap gap-4 items-end">
-                {!isDepartmentMode ? (
-                  <div className="flex-1 min-w-[200px]">
-                    {isClassSessionMode || (sectionIdParam && isClassSectionMode) ? (
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Section: {sectionIdParam || selectedSectionId}
-                      </p>
-                    ) : (
-                      <>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Select Section (Class)
-                        </label>
-                        <select
-                          value={selectedSectionId}
-                          onChange={(e) => setSelectedSectionId(e.target.value)}
-                          disabled={isSessionActive}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                        >
-                          <option value="">Choose a section...</option>
-                          {sections.map((sec) => (
-                            <option key={sec._id || sec.id} value={sec._id || sec.id}>
-                              {sec.sectionName}
-                            </option>
-                          ))}
-                        </select>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex-1 min-w-[200px]">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Department Check-In / Check-Out
-                    </p>
-                    <p className="text-xs text-gray-500">Section ID: {sectionIdParam}</p>
-                  </div>
-                )}
-                <div className="flex gap-3 items-center">
-                  {!isSessionActive ? (
-                    <button
-                      onClick={startAttendance}
-                      disabled={!canStartClassMode || initializing}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                    >
-                      {initializing
-                        ? 'Starting...'
-                        : isDepartmentMode
-                          ? 'Start Check-In'
-                          : 'Start Attendance'}
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={handleScanClick}
-                        disabled={isScanning}
-                        className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400"
-                      >
-                        {isDepartmentMode ? 'Scan Face' : 'Scan & Mark'}
-                      </button>
-                      <button
-                        onClick={endSession}
-                        className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                      >
-                        {isDepartmentMode ? 'End Check-In' : 'End Session'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="mt-3 text-sm text-gray-600">
-                Status: <span className="font-medium">{statusText}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-                <h2 className="text-xl font-bold mb-4">Live Camera Feed</h2>
-                <div className="relative">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full rounded-lg border-2 border-gray-300 scale-x-[-1]"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                </div>
-                <p className="text-sm text-gray-600 mt-3">
-                  Position the person in front of the camera, then click &quot;Scan Face&quot;.
-                </p>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow dark:border dark:border-gray-700">
-                <h2 className="text-xl font-bold mb-4">Attendance Status</h2>
-
-                <div
-                  className={`grid gap-3 mb-6 ${isDepartmentMode ? 'grid-cols-2' : 'grid-cols-4'}`}
+      <div className="space-y-6">
+        <PageHeader
+          title="Live Attendance"
+          subtitle="Real-time biometric attendance tracking"
+          actions={
+            <div className="flex items-center gap-2">
+              {!isSessionActive ? (
+                <button
+                  type="button"
+                  onClick={startAttendance}
+                  disabled={!canStartClassMode || initializing}
+                  className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-indigo-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-blue-600">{students.length}</div>
-                    <div className="text-sm text-gray-600">
-                      {isDepartmentMode ? 'Members' : 'Total'}
-                    </div>
-                  </div>
-                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-green-600">{presentCount}</div>
-                    <div className="text-sm text-gray-600">
-                      {isDepartmentMode ? 'Scans Today' : 'Present'}
-                    </div>
-                  </div>
-                  {!isDepartmentMode && (
-                    <>
-                      <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-center">
-                        <div className="text-2xl font-bold text-yellow-600">{lateCount}</div>
-                        <div className="text-sm text-gray-600">Late</div>
-                      </div>
-                      <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
-                        <div className="text-2xl font-bold text-red-600">
-                          {absentCount + unmarkedCount}
-                        </div>
-                        <div className="text-sm text-gray-600">Absent</div>
-                      </div>
-                    </>
-                  )}
-                </div>
+                  {initializing ? 'Starting…' : isDepartmentMode ? 'Start Check-In' : 'Start Session'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleScanClick}
+                    disabled={isScanning}
+                    className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-emerald-700 hover:shadow-md disabled:opacity-60"
+                  >
+                    {isDepartmentMode ? 'Scan Face' : 'Scan & Mark'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={endSession}
+                    className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-rose-700 hover:shadow-md"
+                  >
+                    End
+                  </button>
+                </>
+              )}
+            </div>
+          }
+        />
 
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold mb-3">
-                    {isDepartmentMode
-                      ? 'Check-In / Check-Out Records'
-                      : 'Recognized Students'}
-                  </h3>
-                  <div className="max-h-96 overflow-y-auto space-y-2">
-                    {recognizedList.length === 0 ? (
-                      <p className="text-gray-500 text-center py-8">
-                        {isDepartmentMode ? 'No check-ins yet' : 'No students recognized yet'}
-                      </p>
-                    ) : (
-                      recognizedList.map((record) => {
-                        const isCheckOut =
-                          isDepartmentMode && record.action === 'check-out';
-                        const isLate =
-                          !isDepartmentMode && (record.isLate || record.status === 'late');
-                        const isAbsent = !isDepartmentMode && record.status === 'absent';
-                        const bgColor = isDepartmentMode
-                          ? isCheckOut
-                            ? 'bg-teal-50 border-teal-200 dark:bg-teal-900/20'
-                            : 'bg-green-50 border-green-200 dark:bg-green-900/20'
-                          : isAbsent
-                            ? 'bg-red-50 border-red-200 dark:bg-red-900/20'
-                            : isLate
-                              ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20'
-                              : 'bg-green-50 border-green-200 dark:bg-green-900/20';
-                        const statusColor = isDepartmentMode
-                          ? isCheckOut
-                            ? 'bg-teal-600'
-                            : 'bg-green-600'
-                          : isAbsent
-                            ? 'bg-red-600'
-                            : isLate
-                              ? 'bg-yellow-600'
-                              : 'bg-green-600';
-                        const statusText = isDepartmentMode
-                          ? isCheckOut
-                            ? '✓ Checked Out'
-                            : '✓ Checked In'
-                          : isAbsent
-                            ? '✗ Absent'
-                            : isLate
-                              ? '⚠ Late'
-                              : '✓ Present';
-                        const lastScanTime = record.lastScanTime
-                          ? new Date(record.lastScanTime).toLocaleTimeString()
-                          : record.time;
-
-                        return (
-                          <div
-                            key={record.studentId}
-                            className={`flex justify-between items-center p-3 ${bgColor} rounded-lg border`}
-                          >
-                            <div>
-                              <p className="font-medium">{record.name}</p>
-                              <p className="text-sm text-gray-600">Roll No: {record.rollNo}</p>
-                              <p className="text-xs text-gray-500">
-                                Scan Time: {lastScanTime}
-                              </p>
-                              {isDepartmentMode && record.workMinutes && (
-                                <p className="text-xs text-teal-600 font-medium">
-                                  Work: {record.workMinutes} min
-                                </p>
-                              )}
-                              {!isDepartmentMode && record.consecutiveLateCount > 0 && (
-                                <p className="text-xs text-orange-600 font-semibold">
-                                  {record.consecutiveLateCount} consecutive late
-                                </p>
-                              )}
-                            </div>
-                            <span
-                              className={`px-3 py-1 ${statusColor} text-white text-sm rounded-full`}
-                            >
-                              {statusText}
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {!isDepartmentMode && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">All Students</h3>
-                    <div className="max-h-64 overflow-y-auto space-y-2">
-                      {students.map((student) => {
-                        const record = attendanceRecords.get(student.id);
-                        return (
-                          <div
-                            key={student.id}
-                            className={`flex justify-between items-center p-2 rounded ${record
-                              ? 'bg-green-50 border border-green-200'
-                              : 'bg-gray-50 border border-gray-200'
-                              }`}
-                          >
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{student.fullName}</p>
-                              <p className="text-xs text-gray-600">Roll: {student.rollNo}</p>
-                              {(student.dateOfBirth || student.gender) && (
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  {student.dateOfBirth && (
-                                    <>DOB: {new Date(student.dateOfBirth).toLocaleDateString()}</>
-                                  )}
-                                  {student.dateOfBirth && student.gender && ' • '}
-                                  {student.gender && (
-                                    <>{student.gender.charAt(0).toUpperCase() + student.gender.slice(1)}</>
-                                  )}
-                                </p>
-                              )}
-                              {(student.guardianName || student.guardianPhone) && (
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  Guardian: {student.guardianName || '—'} {student.guardianPhone ? `• ${student.guardianPhone}` : ''}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex gap-2">
-                              {record ? (
-                                <span className="px-2 py-1 bg-green-600 text-white text-xs rounded">
-                                  {record.status}
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => handleManualMark(student.id, 'present')}
-                                  className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                                >
-                                  Mark Present
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+        {/* Live panel */}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                {isSessionActive ? 'Active Session' : 'No active session'}
+              </div>
+              <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+                Section:{' '}
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {activeSectionName || (resolvedSectionId || selectedSectionId || sectionIdParam || '—')}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-slate-500 dark:text-slate-300/70">
+                Status: <span className="font-semibold text-slate-700 dark:text-slate-200">{statusText}</span>
               </div>
             </div>
 
-            {!isSessionActive && (
-              <div className="bg-white dark:bg-gray-800 p-12 rounded-lg shadow text-center dark:border dark:border-gray-700">
-                <div className="text-6xl mb-4">{isDepartmentMode ? '🏢' : '📹'}</div>
-                <h3 className="text-xl font-semibold mb-2">Ready to Start</h3>
-                <p className="text-gray-600">
-                  {isDepartmentMode
-                    ? 'Click "Start Check-In" to begin face-based check-in/check-out.'
-                    : 'Select a section and click "Start Attendance" to begin the live session.'}
-                </p>
+            <div className="flex flex-wrap items-center gap-3">
+              {!isDepartmentMode && !(isClassSessionMode || (sectionIdParam && isClassSectionMode)) ? (
+                <div className="min-w-[240px]">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">
+                    Select Section
+                  </label>
+                  <select
+                    value={selectedSectionId}
+                    onChange={(e) => setSelectedSectionId(e.target.value)}
+                    disabled={isSessionActive}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/60 disabled:opacity-60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+                  >
+                    <option value="">Choose…</option>
+                    {sections.map((sec) => (
+                      <option key={sec._id || sec.id} value={sec._id || sec.id}>
+                        {sec.sectionName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300/70">
+                  Time running
+                </div>
+                <div key={elapsed} className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">
+                  {elapsed}
+                </div>
               </div>
-            )}
+            </div>
           </div>
-        </main>
+        </div>
+
+        {/* Main layout */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Left: camera */}
+          <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">Camera Preview</div>
+                <div className="mt-1 text-xs text-slate-600 dark:text-slate-300/70">
+                  Align face inside the frame and scan.
+                </div>
+              </div>
+              <div className={['text-xs font-semibold', cameraReady ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'].join(' ')}>
+                {cameraReady ? 'Camera ready' : 'Camera blocked'}
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200/70 dark:border-white/10">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full scale-x-[-1] bg-black"
+                style={{ width: '100%', height: '360px', objectFit: 'cover' }}
+              />
+            </div>
+          </div>
+
+          {/* Right: live list + stats */}
+          <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">Live Attendance Feed</div>
+                <div className="mt-1 text-xs text-slate-600 dark:text-slate-300/70">
+                  New detections appear instantly.
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-xl bg-slate-50 px-3 py-2 text-center dark:bg-white/5">
+                  <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-300/70">Total</div>
+                  <div key={students.length} className="text-lg font-semibold text-slate-900 dark:text-white">{students.length}</div>
+                </div>
+                <div className="rounded-xl bg-emerald-50 px-3 py-2 text-center dark:bg-emerald-400/10">
+                  <div className="text-[11px] font-semibold text-emerald-700/80 dark:text-emerald-200/80">Present</div>
+                  <div key={presentCount} className="text-lg font-semibold text-emerald-800 dark:text-emerald-200">{presentCount}</div>
+                </div>
+                {!isDepartmentMode ? (
+                  <>
+                    <div className="rounded-xl bg-amber-50 px-3 py-2 text-center dark:bg-amber-400/10">
+                      <div className="text-[11px] font-semibold text-amber-800/80 dark:text-amber-200/80">Late</div>
+                      <div key={lateCount} className="text-lg font-semibold text-amber-900 dark:text-amber-200">{lateCount}</div>
+                    </div>
+                    <div className="rounded-xl bg-rose-50 px-3 py-2 text-center dark:bg-rose-400/10">
+                      <div className="text-[11px] font-semibold text-rose-700/80 dark:text-rose-200/80">Absent</div>
+                      <div key={absentCount + unmarkedCount} className="text-lg font-semibold text-rose-800 dark:text-rose-200">{absentCount + unmarkedCount}</div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {liveFeed.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300/70">
+                  No detections yet. Click <span className="font-semibold">Scan</span> to add students live.
+                </div>
+              ) : (
+                <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                  {liveFeed.map((s) => (
+                    <div
+                      key={s.key}
+                      className="live-row-in flex items-center justify-between gap-4 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-950/20"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="h-10 w-10 shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white flex items-center justify-center text-sm font-semibold">
+                          {(s.name || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">{s.name}</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-300/70">{s.time}</div>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-200 dark:ring-emerald-300/20">
+                        {String(s.status || 'present').toLowerCase() === 'late' ? 'Late' : String(s.status || 'present').toLowerCase() === 'absent' ? 'Absent' : 'Present'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

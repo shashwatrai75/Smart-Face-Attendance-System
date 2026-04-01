@@ -1,38 +1,97 @@
 import PropTypes from 'prop-types';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ChevronIcon, DashboardIcon, FolderIcon, HistoryIcon, Icon, ReportsIcon, UsersIcon } from './icons';
+import {
+  CameraIcon,
+  ChevronIcon,
+  ClipboardIcon,
+  DashboardIcon,
+  FolderIcon,
+  GraduationIcon,
+  HistoryIcon,
+  Icon,
+  PlusUserIcon,
+  ReportsIcon,
+  SettingsIcon,
+  ShieldIcon,
+  UsersIcon,
+  WarningIcon,
+} from './icons';
 
 const groupsForRole = (role) => {
-  if (role !== 'admin' && role !== 'superadmin') {
-    return [
-      {
-        title: 'Dashboard',
-        items: [{ to: '/member/dashboard', label: 'Dashboard', icon: DashboardIcon }],
-      },
-    ];
-  }
+  const isAdmin = role === 'admin';
+  const isSuperadmin = role === 'superadmin';
+  const isSupervisor = role === 'hr';
+  const isMember = role === 'member' || (!isAdmin && !isSuperadmin && !isSupervisor);
 
-  return [
+  // Requested grouping. We filter per-role below.
+  const groups = [
     {
-      title: 'Dashboard',
-      items: [{ to: '/admin/dashboard', label: 'Overview', icon: DashboardIcon }],
-    },
-    {
-      title: 'Management',
+      title: 'MAIN',
       items: [
-        { to: '/admin/users', label: 'Users', icon: UsersIcon },
-        { to: '/admin/sections', label: 'Sections', icon: FolderIcon },
+        { to: isAdmin || isSuperadmin ? '/admin/dashboard' : '/member/dashboard', label: 'Dashboard', icon: DashboardIcon },
       ],
     },
     {
-      title: 'Reports',
+      title: 'MANAGEMENT',
       items: [
-        { to: '/admin/history', label: 'History', icon: HistoryIcon },
-        { to: '/admin/reports', label: 'Reports', icon: ReportsIcon },
+        { to: '/admin/users', label: 'Manage Users', icon: UsersIcon, roles: ['admin', 'superadmin'] },
+        { to: '/admin/sections', label: 'My Sections', icon: FolderIcon, roles: ['admin', 'superadmin'] },
+        { to: '/member/dashboard', label: 'My Sections', icon: FolderIcon, roles: ['member'] },
+        { to: '/member/enroll', label: 'Enroll Students', icon: GraduationIcon, roles: ['member', 'admin', 'superadmin'] },
+        { to: '/hr/enroll-employee', label: 'Enroll Employees', icon: PlusUserIcon, roles: ['hr', 'superadmin'] },
+        { to: '/admin/enroll-employee', label: 'Enroll Employees', icon: PlusUserIcon, roles: ['superadmin'] },
+      ],
+    },
+    {
+      title: 'ATTENDANCE',
+      items: [
+        { to: '/member/attendance', label: 'Live Attendance', icon: CameraIcon, roles: ['member', 'admin', 'superadmin'] },
+        { to: '/admin/history', label: 'History', icon: HistoryIcon, roles: ['admin', 'superadmin'] },
+        { to: '/hr/history', label: 'History', icon: HistoryIcon, roles: ['hr', 'superadmin'] },
+        { to: '/member/history', label: 'Member History', icon: HistoryIcon, roles: ['member', 'admin', 'superadmin'] },
+        { to: '/hr/attendance', label: 'Live Attendance', icon: CameraIcon, roles: ['hr', 'superadmin'] },
+      ],
+    },
+    {
+      title: 'REPORTS',
+      items: [
+        { to: '/admin/reports', label: 'Reports', icon: ReportsIcon, roles: ['admin', 'superadmin'] },
+        { to: '/member/reports', label: 'Member Reports', icon: ReportsIcon, roles: ['member', 'admin', 'superadmin'] },
+        { to: '/hr/reports', label: 'Reports', icon: ReportsIcon, roles: ['hr', 'superadmin'] },
+      ],
+    },
+    {
+      title: 'ADMIN',
+      items: [
+        { to: '/superadmin/system-settings', label: 'System Settings', icon: SettingsIcon, roles: ['superadmin'] },
+        { to: '/superadmin/admin-management', label: 'Office Admin Management', icon: ShieldIcon, roles: ['superadmin'] },
+        { to: '/superadmin/audit-logs', label: 'Audit Logs', icon: ClipboardIcon, roles: ['superadmin'] },
+        { to: '/superadmin/danger-zone', label: 'Danger Zone', icon: WarningIcon, roles: ['superadmin'] },
+      ],
+    },
+    {
+      title: 'SUPERVISOR',
+      items: [
+        { to: '/hr/dashboard', label: 'Supervisor Dashboard', icon: DashboardIcon, roles: ['hr', 'superadmin'] },
+        { to: '/hr/enroll-employee', label: 'Supervisor Enroll Employee', icon: PlusUserIcon, roles: ['hr', 'superadmin'] },
+        { to: '/hr/face-scan', label: 'Supervisor Face Scan', icon: CameraIcon, roles: ['hr', 'superadmin'] },
       ],
     },
   ];
+
+  const roleKey = isSuperadmin ? 'superadmin' : isAdmin ? 'admin' : isSupervisor ? 'hr' : 'member';
+  const visible = groups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => !it.roles || it.roles.includes(roleKey)),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  // For supervisors, keep it simpler by hiding admin-only groups.
+  if (isSupervisor && !isSuperadmin) return visible.filter((g) => g.title !== 'ADMIN');
+  if (isMember && !isAdmin && !isSuperadmin) return visible.filter((g) => g.title !== 'ADMIN' && g.title !== 'SUPERVISOR');
+  return visible;
 };
 
 const SidebarNav = ({ collapsed, onToggleCollapsed }) => {
@@ -41,14 +100,14 @@ const SidebarNav = ({ collapsed, onToggleCollapsed }) => {
 
   const groups = groupsForRole(user?.role);
 
-  const isActive = (to) => pathname === to;
+  const isActive = (to) => pathname === to || (to !== '/' && pathname.startsWith(`${to}/`));
 
   return (
     <aside
       className={[
         'relative hidden shrink-0 border-r border-white/5 bg-slate-900 text-slate-100 lg:flex lg:flex-col',
-        collapsed ? 'w-[76px]' : 'w-[280px]',
-        'transition-[width] duration-300',
+        collapsed ? 'w-[76px]' : 'w-64',
+        'transition-[width] duration-200',
       ].join(' ')}
     >
       <div className="flex items-center justify-between gap-3 px-4 py-4">
@@ -85,7 +144,7 @@ const SidebarNav = ({ collapsed, onToggleCollapsed }) => {
           {groups.map((group) => (
             <div key={group.title}>
               {!collapsed && (
-                <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-slate-300/60 uppercase">
+                <div className="px-3 pb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                   {group.title}
                 </div>
               )}
@@ -100,20 +159,13 @@ const SidebarNav = ({ collapsed, onToggleCollapsed }) => {
                       to={item.to}
                       title={collapsed ? item.label : undefined}
                       className={[
-                        'group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-300',
+                        'group flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200',
                         active
-                          ? 'bg-white/10 text-white ring-1 ring-white/10 shadow-[0_18px_50px_rgba(0,0,0,0.25)]'
-                          : 'text-slate-300 hover:bg-white/5 hover:text-white',
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-200/80 hover:bg-slate-800 hover:text-white',
                       ].join(' ')}
                     >
-                      <div
-                        className={[
-                          'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-                          active ? 'bg-indigo-500/20 text-indigo-100' : 'bg-white/5 text-slate-200/80 group-hover:bg-white/10',
-                        ].join(' ')}
-                      >
-                        <ItemIcon className="h-5 w-5" />
-                      </div>
+                      <ItemIcon className="h-5 w-5" />
                       {!collapsed && (
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium">{item.label}</div>

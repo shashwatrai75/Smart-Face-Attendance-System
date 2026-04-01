@@ -6,11 +6,13 @@ import {
   updateSection,
   deleteSection,
 } from '../api/api';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TimePickerField from '../components/TimePickerField';
+import DashboardLayout from '../components/dashboard/DashboardLayout';
+import PageHeader from '../components/userManagement/PageHeader';
+import SectionCard from '../components/sections/SectionCard';
+import SectionCardSkeleton from '../components/sections/SectionCardSkeleton';
 
 const formatDateForInput = (d) => {
   if (!d) return '';
@@ -214,24 +216,15 @@ const SectionManagement = () => {
   };
 
   const inputClass =
-    'w-full px-4 py-2.5 border rounded-xl bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors';
-  const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5';
+    'w-full px-4 py-2 border rounded-lg bg-white dark:bg-slate-950/40 border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500/40 transition-all';
+  const labelClass = 'block text-xs font-semibold text-slate-600 dark:text-slate-300/70 mb-1.5';
 
   const rootSections = sections.filter((s) => !s.parentSectionId);
   const childrenOf = (parentId) =>
     sections.filter((s) => s.parentSectionId && String(s.parentSectionId) === String(parentId));
 
-  if (loading) {
-    return (
-      <div className="min-h-screen page-bg flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen page-bg">
-      <Navbar />
+    <DashboardLayout pageTitle="Manage Sections">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmDialog && (
         <ConfirmDialog
@@ -241,61 +234,64 @@ const SectionManagement = () => {
           onCancel={confirmDialog.onCancel}
         />
       )}
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          <div className="mb-8 flex justify-between items-center">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-                Manage Sections
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                Create and manage Class and Department sections
-              </p>
-            </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="Manage Sections"
+          subtitle="Create and organize classes and departments"
+          actions={
             <button
+              type="button"
               onClick={() => {
                 setEditingSection(null);
                 resetForm();
-                setShowForm(!showForm);
+                setShowForm((v) => !v);
               }}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-semibold shadow-lg"
+              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-indigo-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
             >
               {showForm ? 'Cancel' : '+ Add Section'}
             </button>
-          </div>
+          }
+        />
 
           {showForm && (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg mb-8 border border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">
+            <div className="max-w-3xl rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+              <h2 className="text-lg font-semibold mb-1 text-slate-900 dark:text-white">
                 {editingSection ? 'Edit Section' : 'New Section'}
               </h2>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label className={labelClass}>Section Name</label>
-                  <input
-                    type="text"
-                    value={formData.sectionName}
-                    onChange={(e) => setFormData({ ...formData, sectionName: e.target.value })}
-                    className={`${inputClass} ${errors.sectionName ? 'border-red-500' : ''}`}
-                    placeholder="e.g. Class 10, CS 101, or HR Department"
-                    required
-                  />
-                  {errors.sectionName && (
-                    <p className="mt-1 text-sm text-red-500">{errors.sectionName}</p>
-                  )}
-                </div>
+              <p className="text-sm text-slate-600 dark:text-slate-300/70">
+                {editingSection ? 'Update section settings and schedule.' : 'Add a new class or department section.'}
+              </p>
 
-                <div>
-                  <label className={labelClass}>Section Type</label>
-                  <select
-                    value={formData.sectionType}
-                    onChange={(e) => setFormData({ ...formData, sectionType: e.target.value })}
-                    className={inputClass}
-                  >
-                    <option value="class">Class (Education)</option>
-                    <option value="department">Department (Office)</option>
-                  </select>
+              <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+                <div className="space-y-4">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">Section Info</div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className={labelClass}>Section Name</label>
+                      <input
+                        type="text"
+                        value={formData.sectionName}
+                        onChange={(e) => setFormData({ ...formData, sectionName: e.target.value })}
+                        className={`${inputClass} ${errors.sectionName ? 'border-rose-400/60 ring-1 ring-rose-400/30' : ''}`}
+                        placeholder="e.g. Class 10, CS 101, HR Department"
+                        required
+                      />
+                      {errors.sectionName && (
+                        <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{errors.sectionName}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>Section Type</label>
+                      <select
+                        value={formData.sectionType}
+                        onChange={(e) => setFormData({ ...formData, sectionType: e.target.value })}
+                        className={inputClass}
+                      >
+                        <option value="class">Class (Education)</option>
+                        <option value="department">Department (Office)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 {!editingSection && (
@@ -436,11 +432,9 @@ const SectionManagement = () => {
                   </div>
                 )}
 
-                <div className="rounded-xl border border-gray-200 dark:border-gray-600 p-4 bg-gray-50 dark:bg-gray-700/50">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                    {formData.sectionType === 'class' ? 'Class' : 'Shift'} Duration (Optional)
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">Schedule Info</div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                       <label className={labelClass}>Start Date</label>
                       <input
@@ -456,10 +450,10 @@ const SectionManagement = () => {
                         type="date"
                         value={formData.endDate}
                         onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                        className={`${inputClass} ${errors.endDate ? 'border-red-500' : ''}`}
+                        className={`${inputClass} ${errors.endDate ? 'border-rose-400/60 ring-1 ring-rose-400/30' : ''}`}
                       />
                       {errors.endDate && (
-                        <p className="mt-1 text-sm text-red-500">{errors.endDate}</p>
+                        <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{errors.endDate}</p>
                       )}
                     </div>
                     <div>
@@ -471,7 +465,7 @@ const SectionManagement = () => {
                         hasError={!!errors.startTime}
                       />
                       {errors.startTime && (
-                        <p className="mt-1 text-sm text-red-500">{errors.startTime}</p>
+                        <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{errors.startTime}</p>
                       )}
                     </div>
                     <div>
@@ -483,7 +477,7 @@ const SectionManagement = () => {
                         hasError={!!errors.endTime}
                       />
                       {errors.endTime && (
-                        <p className="mt-1 text-sm text-red-500">{errors.endTime}</p>
+                        <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{errors.endTime}</p>
                       )}
                     </div>
                   </div>
@@ -495,7 +489,7 @@ const SectionManagement = () => {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className={inputClass}
-                    rows={2}
+                    rows={3}
                     placeholder="Optional notes"
                   />
                 </div>
@@ -503,7 +497,7 @@ const SectionManagement = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-medium"
+                    className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-indigo-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
                   >
                     {editingSection ? 'Update' : 'Create'}
                   </button>
@@ -514,7 +508,7 @@ const SectionManagement = () => {
                       setEditingSection(null);
                       resetForm();
                     }}
-                    className="px-6 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
+                    className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-100 dark:hover:bg-white/5"
                   >
                     Cancel
                   </button>
@@ -523,110 +517,80 @@ const SectionManagement = () => {
             </div>
           )}
 
-          <div className="space-y-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Section Hierarchy</h2>
-            {rootSections.map((section) => (
-              <div key={section._id} className="space-y-2">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex flex-wrap gap-2 items-center">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded ${
-                          section.sectionType === 'class'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
-                            : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400'
-                        }`}
-                      >
-                        {section.sectionType === 'class' ? 'Class' : 'Department'}
-                      </span>
-                      {section.hasSubclasses && (
-                        <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Container</span>
-                      )}
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <Link
-                        to={`/admin/sections/${section._id}`}
-                        className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
-                      >
-                        Manage
-                      </Link>
-                      <button
-                        onClick={() => handleEdit(section)}
-                        className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(section)}
-                        className="text-red-600 hover:text-red-700 text-sm font-medium"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-                    {section.sectionName}
-                  </h3>
-                  {(section.startTime || section.endTime) && (
-                    <p className="text-xs text-gray-500">
-                      {section.startTime || '–'} – {section.endTime || '–'}
-                      {section.startDate || section.endDate
-                        ? ` · ${section.startDate || '–'} to ${section.endDate || '–'}`
-                        : ''}
-                    </p>
-                  )}
-                </div>
-                {childrenOf(section._id).length > 0 && (
-                  <div className="ml-6 pl-4 border-l-4 border-l-indigo-400 space-y-2">
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-2">
-                      ├── Subclasses
-                    </p>
-                    {childrenOf(section._id).map((child) => (
-                      <div
-                        key={child._id}
-                        className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border border-gray-200 dark:border-gray-700"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-semibold text-gray-900 dark:text-white">{child.sectionName}</h4>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Under: {section.sectionName}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Link
-                              to={`/admin/sections/${child._id}`}
-                              className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
-                            >
-                              Manage
-                            </Link>
-                            <button
-                              onClick={() => handleEdit(child)}
-                              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(child)}
-                              className="text-red-600 hover:text-red-700 text-sm font-medium"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          {sections.length === 0 && (
-            <div className="bg-white dark:bg-gray-800 p-12 rounded-2xl text-center border border-gray-200 dark:border-gray-700">
-              <p className="text-gray-500 dark:text-gray-400 mb-2">No sections yet. Create one to get started.</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-200">
+                Sections
+              </h2>
+              <span className="text-xs text-slate-500 dark:text-slate-300/70">
+                {sections.length} total
+              </span>
             </div>
-          )}
-        </main>
+
+            {loading ? (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <SectionCardSkeleton count={6} />
+              </div>
+            ) : sections.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-white/10 dark:bg-slate-900/40">
+                <div className="mx-auto max-w-md">
+                  <div className="text-lg font-semibold text-slate-900 dark:text-white">No sections created yet</div>
+                  <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+                    Create your first class or department to start enrolling and tracking attendance.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSection(null);
+                      resetForm();
+                      setShowForm(true);
+                    }}
+                    className="mt-5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-indigo-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+                  >
+                    + Add Section
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {rootSections.map((section) => {
+                  const kids = childrenOf(section._id);
+                  const metaParts = [];
+                  if (section.startTime || section.endTime) metaParts.push(`${section.startTime || '–'}–${section.endTime || '–'}`);
+                  if (section.startDate || section.endDate) metaParts.push(`${section.startDate || '–'} to ${section.endDate || '–'}`);
+                  const meta = metaParts.join(' · ');
+                  return (
+                    <div key={section._id} className="space-y-3">
+                      <SectionCard
+                        section={section}
+                        subtitle={section.description || (kids.length ? `${kids.length} subclasses` : '')}
+                        rightMeta={meta || undefined}
+                        onEdit={() => handleEdit(section)}
+                        onDelete={() => handleDelete(section)}
+                      />
+
+                      {kids.length > 0 ? (
+                        <div className="space-y-3 pl-2">
+                          {kids.map((child) => (
+                            <SectionCard
+                              key={child._id}
+                              section={child}
+                              subtitle={`Under: ${section.sectionName}`}
+                              rightMeta={child.description || ''}
+                              onEdit={() => handleEdit(child)}
+                              onDelete={() => handleDelete(child)}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

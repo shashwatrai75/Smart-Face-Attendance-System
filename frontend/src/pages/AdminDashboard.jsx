@@ -34,12 +34,12 @@ const AdminDashboard = () => {
   };
 
   const cards = [
-    { label: 'Total Users', value: stats?.totalUsers ?? 0, tone: 'primary', trend: { value: 12, label: 'vs last week' } },
-    { label: 'Active Members', value: stats?.activeMembers ?? 0, tone: 'success', trend: { value: 4, label: 'vs last week' } },
-    { label: 'Total Sections', value: stats?.totalSections ?? 0, tone: 'warning', trend: { value: 1, label: 'vs last week' } },
-    { label: 'Total Students', value: stats?.totalStudents ?? 0, tone: 'primary', trend: { value: 6, label: 'vs last week' } },
-    { label: 'Total Attendance', value: stats?.totalAttendance ?? 0, tone: 'success', trend: { value: 9, label: 'vs last week' } },
-    { label: "Today's Attendance", value: stats?.todayAttendance ?? 0, tone: 'danger', trend: { value: -2, label: 'vs yesterday' } },
+    { icon: '👥', label: 'Total Users', value: stats?.totalUsers ?? 0, tone: 'primary', trend: { value: 12, label: 'vs last week' } },
+    { icon: '⚡', label: 'Active Members', value: stats?.activeMembers ?? 0, tone: 'success', trend: { value: 4, label: 'vs last week' } },
+    { icon: '🏫', label: 'Total Sections', value: stats?.totalSections ?? 0, tone: 'warning', trend: { value: 1, label: 'vs last week' } },
+    { icon: '🎓', label: 'Total Students', value: stats?.totalStudents ?? 0, tone: 'primary', trend: { value: 6, label: 'vs last week' } },
+    { icon: '📅', label: 'Total Attendance', value: stats?.totalAttendance ?? 0, tone: 'success', trend: { value: 9, label: 'vs last week' } },
+    { icon: '📊', label: "Today's Attendance", value: stats?.todayAttendance ?? 0, tone: 'danger', trend: { value: -2, label: 'vs yesterday' } },
   ];
 
   return (
@@ -51,22 +51,23 @@ const AdminDashboard = () => {
           onClose={() => setToast(null)}
         />
       )}
-      <div className="space-y-8">
+      <div className="w-full space-y-6">
         {/* Header row */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+            <h1 className="text-[28px] font-bold tracking-tight text-slate-900 dark:text-white">
               Office Admin Dashboard
             </h1>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+            <p className="mt-2 text-base text-slate-600 dark:text-slate-300/70">
               Overview of your system health, usage, and attendance activity.
             </p>
           </div>
           <div className="flex items-center gap-3">
             <Link
               to="/admin/sections"
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-400/60"
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-base font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-400/60"
             >
+              <span aria-hidden="true" className="mr-2 text-[20px] leading-none">🏫</span>
               Create Section
             </Link>
           </div>
@@ -75,7 +76,8 @@ const AdminDashboard = () => {
         {/* Stats overview */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-200">
+            <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+              <span aria-hidden="true" className="mr-2 text-[20px] leading-none">📊</span>
               Stats Overview
             </h2>
             <span className="text-xs text-slate-500 dark:text-slate-300/70">
@@ -83,37 +85,38 @@ const AdminDashboard = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
             {loading
               ? Array.from({ length: 4 }).map((_, idx) => <SkeletonCard key={idx} />)
               : cards.slice(0, 4).map((c) => (
-                  <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} trend={c.trend} />
+                  <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} trend={c.trend} icon={c.icon} />
                 ))}
           </div>
         </section>
 
         {/* Quick actions */}
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-200">
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+            <span aria-hidden="true" className="mr-2 text-[20px] leading-none">⚡</span>
             Quick Actions
           </h2>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
             <Link
               to="/admin/sections"
               className="group rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-slate-900/40"
             >
               <div className="flex items-start gap-4">
                 <div className="rounded-2xl bg-indigo-500/10 p-3 text-indigo-700 ring-1 ring-indigo-500/15 dark:bg-indigo-400/10 dark:text-indigo-200 dark:ring-indigo-300/15">
-                  <div className="h-6 w-6 rounded-lg bg-current/10" title="Sections" />
+                  <span className="text-[22px] leading-none" aria-hidden="true">🏫</span>
                 </div>
                 <div className="min-w-0">
-                  <div className="text-base font-semibold text-slate-900 dark:text-white">Manage Sections</div>
-                  <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+                  <div className="text-lg font-semibold text-slate-900 dark:text-white">Manage Sections</div>
+                  <div className="mt-1 text-base text-slate-600 dark:text-slate-300/70">
                     Create and organize classes and departments.
                   </div>
                 </div>
               </div>
-              <div className="mt-4 text-sm font-semibold text-indigo-600 dark:text-indigo-300">
+              <div className="mt-5 text-sm font-semibold text-indigo-600 dark:text-indigo-300">
                 Open →
               </div>
             </Link>
@@ -124,16 +127,16 @@ const AdminDashboard = () => {
             >
               <div className="flex items-start gap-4">
                 <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-700 ring-1 ring-emerald-500/15 dark:bg-emerald-400/10 dark:text-emerald-200 dark:ring-emerald-300/15">
-                  <div className="h-6 w-6 rounded-lg bg-current/10" title="Users" />
+                  <span className="text-[22px] leading-none" aria-hidden="true">👥</span>
                 </div>
                 <div className="min-w-0">
-                  <div className="text-base font-semibold text-slate-900 dark:text-white">User Management</div>
-                  <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+                  <div className="text-lg font-semibold text-slate-900 dark:text-white">User Management</div>
+                  <div className="mt-1 text-base text-slate-600 dark:text-slate-300/70">
                     Invite users, manage roles, and access.
                   </div>
                 </div>
               </div>
-              <div className="mt-4 text-sm font-semibold text-emerald-700 dark:text-emerald-200">
+              <div className="mt-5 text-sm font-semibold text-emerald-700 dark:text-emerald-200">
                 Open →
               </div>
             </Link>
@@ -144,16 +147,16 @@ const AdminDashboard = () => {
             >
               <div className="flex items-start gap-4">
                 <div className="rounded-2xl bg-amber-500/10 p-3 text-amber-800 ring-1 ring-amber-500/15 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-300/15">
-                  <div className="h-6 w-6 rounded-lg bg-current/10" title="Reports" />
+                  <span className="text-[22px] leading-none" aria-hidden="true">📈</span>
                 </div>
                 <div className="min-w-0">
-                  <div className="text-base font-semibold text-slate-900 dark:text-white">Reports</div>
-                  <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+                  <div className="text-lg font-semibold text-slate-900 dark:text-white">Reports</div>
+                  <div className="mt-1 text-base text-slate-600 dark:text-slate-300/70">
                     Export and review attendance analytics.
                   </div>
                 </div>
               </div>
-              <div className="mt-4 text-sm font-semibold text-amber-800 dark:text-amber-200">
+              <div className="mt-5 text-sm font-semibold text-amber-800 dark:text-amber-200">
                 Open →
               </div>
             </Link>
@@ -162,11 +165,12 @@ const AdminDashboard = () => {
 
         {/* Recent activity */}
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-slate-700 dark:text-slate-200">
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+            <span aria-hidden="true" className="mr-2 text-[20px] leading-none">⚡</span>
             Recent Activity / Reports
           </h2>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
             <div className="lg:col-span-2 rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -188,15 +192,18 @@ const AdminDashboard = () => {
                   </>
                 ) : (
                   <>
-                    <StatCard label="Total Attendance" value={cards[4].value} tone={cards[4].tone} trend={cards[4].trend} />
-                    <StatCard label="Today's Attendance" value={cards[5].value} tone={cards[5].tone} trend={cards[5].trend} />
+                    <StatCard label="Total Attendance" value={cards[4].value} tone={cards[4].tone} trend={cards[4].trend} icon={cards[4].icon} />
+                    <StatCard label="Today's Attendance" value={cards[5].value} tone={cards[5].tone} trend={cards[5].trend} icon={cards[5].icon} />
                   </>
                 )}
               </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
-              <div className="text-base font-semibold text-slate-900 dark:text-white">Activity</div>
+              <div className="text-base font-semibold text-slate-900 dark:text-white">
+                <span aria-hidden="true" className="mr-2">⚡</span>
+                Activity
+              </div>
               <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
                 Latest events in your workspace.
               </div>
