@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { getSessionHistory, getSessionDetails, getSections, notifyAbsentTodaySMS } from '../api/api';
+import { useMemo, useState, useEffect } from 'react';
+import { getSessionHistory, getSessionDetails, getSections, notifyAbsentTodaySMS, getCheckInHistory } from '../api/api';
 import { formatDate, formatDateTime, getToday, getFirstOfMonth } from '../utils/date';
 import { useAuth } from '../context/AuthContext';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
-import Loader from '../components/Loader';
 import Toast from '../components/Toast';
+import DashboardLayout from '../components/dashboard/DashboardLayout';
+import PageHeader from '../components/userManagement/PageHeader';
+import AttendanceSectionCard from '../components/attendanceHistory/AttendanceSectionCard';
+import HistorySkeleton from '../components/attendanceHistory/HistorySkeleton';
+import StatusPill from '../components/attendanceHistory/StatusPill';
 
 const AttendanceHistory = () => {
   const { user } = useAuth();
@@ -18,26 +20,31 @@ const AttendanceHistory = () => {
   const [sessionDetails, setSessionDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('sessions');
+  const [activeTab, setActiveTab] = useState('student'); // student | teacher
   const [filters, setFilters] = useState({
     sectionId: '',
     startDate: getFirstOfMonth(),
     endDate: getToday(),
   });
+  const [statusFilter, setStatusFilter] = useState('all'); // all | present | absent | late
   const [error, setError] = useState(null);
   const [smsBusy, setSmsBusy] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({});
+
+  const [teacherRecords, setTeacherRecords] = useState([]);
+  const [loadingTeacher, setLoadingTeacher] = useState(false);
 
   useEffect(() => {
     try {
       fetchSections();
-      fetchSessions();
+      // initial load handled by Apply button; keep list lightweight on mount
     } catch (err) {
       console.error('Error initializing AttendanceHistory:', err);
       setError('Failed to initialize page');
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.sectionId, filters.startDate, filters.endDate]);
+  }, []);
 
   const fetchSections = async () => {
     try {
@@ -75,12 +82,34 @@ const AttendanceHistory = () => {
     }
   };
 
+  const fetchTeacher = async () => {
+    setLoadingTeacher(true);
+    try {
+      const params = {};
+      if (filters.sectionId) params.sectionId = filters.sectionId;
+      if (filters.startDate) params.dateFrom = filters.startDate;
+      if (filters.endDate) params.dateTo = filters.endDate;
+      const res = await getCheckInHistory(params);
+      setTeacherRecords(Array.isArray(res?.records) ? res.records : []);
+    } catch (err) {
+      setToast({ message: err?.error || 'Failed to load teacher attendance', type: 'error' });
+      setTeacherRecords([]);
+    } finally {
+      setLoadingTeacher(false);
+    }
+  };
+
   const handleFilterChange = (key, value) => {
     setFilters({ ...filters, [key]: value });
   };
 
   const handleApplyFilters = () => {
-    fetchSessions();
+    if (!filters.sectionId) {
+      setToast({ message: 'Please select a section', type: 'error' });
+      return;
+    }
+    if (activeTab === 'teacher') fetchTeacher();
+    else fetchSessions();
   };
 
   const handleSmsAbsentToday = async () => {
@@ -140,61 +169,142 @@ const AttendanceHistory = () => {
     setSelectedSession(null);
   };
 
-  const getStatusBadgeColor = (status) => {
-    const colors = {
-      present: 'bg-green-100 text-green-800',
-      absent: 'bg-red-100 text-red-800',
-      late: 'bg-yellow-100 text-yellow-800',
-      excused: 'bg-blue-100 text-blue-800',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
-
   if (loading) {
-    return (
-      <div className="min-h-screen page-bg">
-        <Navbar />
-        <div className="flex">
-          <Sidebar />
-          <main className="flex-1 p-8 flex items-center justify-center">
-            <Loader />
-          </main>
-        </div>
-      </div>
-    );
+    // keep skeleton inside the dashboard shell
   }
 
   if (error) {
     return (
-      <div className="min-h-screen page-bg">
-        <Navbar />
-        <div className="flex">
-          <Sidebar />
-          <main className="flex-1 p-8 flex items-center justify-center">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md max-w-md dark:border dark:border-gray-700">
-              <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-              <p className="text-gray-700 mb-4">{error}</p>
-              <button
-                onClick={() => {
-                  setError(null);
-                  setLoading(true);
-                  fetchSections();
-                  fetchSessions();
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Retry
-              </button>
-            </div>
-          </main>
+      <DashboardLayout pageTitle="Attendance History">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+          <div className="text-lg font-semibold text-rose-600 dark:text-rose-300">Error</div>
+          <div className="mt-2 text-sm text-slate-700 dark:text-slate-200">{error}</div>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              fetchSections();
+            }}
+            className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+          >
+            Retry
+          </button>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
+  const selectedSection = useMemo(
+    () => sections.find((s) => String(s._id || s.id) === String(filters.sectionId)),
+    [sections, filters.sectionId]
+  );
+
+  const filteredSessions = useMemo(() => {
+    const list = Array.isArray(sessions) ? sessions : [];
+    if (statusFilter === 'all') return list;
+    if (statusFilter === 'present') return list.filter((s) => (s.presentCount ?? 0) > 0);
+    if (statusFilter === 'absent') return list.filter((s) => (s.absentCount ?? 0) > 0);
+    if (statusFilter === 'late') return list.filter((s) => (s.lateCount ?? 0) > 0);
+    return list;
+  }, [sessions, statusFilter]);
+
+  const grouped = useMemo(() => {
+    const bySection = new Map();
+    const add = (secId, secName, dateKey, payload) => {
+      const sKey = String(secId || 'unknown');
+      const sectionEntry = bySection.get(sKey) || { sectionId: sKey, sectionName: secName || 'Section', dates: new Map() };
+      const dKey = String(dateKey || 'unknown-date');
+      const day = sectionEntry.dates.get(dKey) || { date: dKey, items: [] };
+      day.items.push(payload);
+      sectionEntry.dates.set(dKey, day);
+      bySection.set(sKey, sectionEntry);
+    };
+
+    if (activeTab === 'teacher') {
+      (teacherRecords || []).forEach((r) => {
+        const sec = r.sectionId;
+        const secId = sec?._id || r.sectionId;
+        const secName = sec?.sectionName || 'Department';
+        add(secId, secName, r.date, { kind: 'checkin', record: r });
+      });
+    } else {
+      (filteredSessions || []).forEach((s) => {
+        add(s.sectionId || s.section?._id || s.section, s.sectionName, s.date, { kind: 'session', session: s });
+      });
+    }
+
+    return Array.from(bySection.values()).map((sec) => ({
+      ...sec,
+      dates: Array.from(sec.dates.values())
+        .map((d) => ({ ...d }))
+        .sort((a, b) => String(b.date).localeCompare(String(a.date))),
+    }));
+  }, [activeTab, teacherRecords, filteredSessions]);
+
+  const sectionCards = useMemo(() => {
+    if (!filters.sectionId) return [];
+    const secGroup = grouped.find((g) => String(g.sectionId) === String(filters.sectionId));
+    if (!secGroup) return [];
+
+    const timelineItems = secGroup.dates.map((d) => {
+      const sessionsInDay = d.items.filter((x) => x.kind === 'session').map((x) => x.session);
+      const checkinsInDay = d.items.filter((x) => x.kind === 'checkin').map((x) => x.record);
+
+      if (activeTab === 'teacher') {
+        const present = checkinsInDay.filter((r) => r.checkInTime).length;
+        const absent = 0;
+        return {
+          key: `${secGroup.sectionId}:${d.date}`,
+          title: formatDate(d.date),
+          present,
+          absent,
+          late: undefined,
+          raw: { date: d.date, items: d.items },
+        };
+      }
+
+      const present = sessionsInDay.reduce((sum, s) => sum + Number(s.presentCount || 0), 0);
+      const absent = sessionsInDay.reduce((sum, s) => sum + Number(s.absentCount || 0), 0);
+      const late = sessionsInDay.reduce((sum, s) => sum + Number(s.lateCount || 0), 0);
+      return {
+        key: `${secGroup.sectionId}:${d.date}`,
+        title: formatDate(d.date),
+        present,
+        absent,
+        late,
+        raw: { date: d.date, items: d.items },
+      };
+    });
+
+    const totalStudents =
+      activeTab === 'teacher'
+        ? undefined
+        : Math.max(
+            ...secGroup.dates.flatMap((d) =>
+              d.items.filter((x) => x.kind === 'session').map((x) => Number(x.session.totalStudents || 0))
+            ),
+            0
+          );
+
+    const totals = timelineItems.reduce(
+      (acc, it) => ({ present: acc.present + (it.present || 0), absent: acc.absent + (it.absent || 0) }),
+      { present: 0, absent: 0 }
+    );
+    const attendanceRate = totals.present + totals.absent > 0 ? (totals.present / (totals.present + totals.absent)) * 100 : 0;
+
+    return [
+      {
+        sectionId: secGroup.sectionId,
+        sectionName: secGroup.sectionName,
+        totalStudents,
+        attendanceRate,
+        timelineItems,
+      },
+    ];
+  }, [filters.sectionId, grouped, activeTab]);
+
   return (
-    <div className="min-h-screen page-bg" style={{ minHeight: '100vh' }}>
-      <Navbar />
+    <DashboardLayout pageTitle="Attendance History">
       {toast && (
         <Toast
           message={toast.message}
@@ -202,93 +312,122 @@ const AttendanceHistory = () => {
           onClose={() => setToast(null)}
         />
       )}
-      <div className="flex" style={{ minHeight: 'calc(100vh - 64px)' }}>
-        <Sidebar />
-        <main className="flex-1 p-8 bg-gray-50 dark:bg-gray-900">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Attendance History
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              View previously recorded attendance sessions
-            </p>
-          </div>
-
-          {/* Tabs - Teacher Attendance only for superadmin/admin */}
-          {canViewTeacherAttendance && (
-            <div className="flex gap-2 mb-6">
-              <button
-                onClick={() => setActiveTab('sessions')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === 'sessions'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                }`}
-              >
-                Student Attendance
-              </button>
-              <button
-                onClick={() => setActiveTab('teacher')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === 'teacher'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                }`}
-              >
-                Teacher Attendance
-              </button>
-            </div>
-          )}
-
-          {/* Filters Section */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-6 dark:border dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
-                  <select
-                    value={filters.sectionId}
-                    onChange={(e) => handleFilterChange('sectionId', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">All Sections</option>
-                    {sections.map((sec) => (
-                      <option key={sec._id || sec.id} value={sec._id || sec.id}>
-                        {sec.sectionName}
-                      </option>
-))}
-              </select>
-                </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-                <input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-                <input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div className="flex items-end">
+      <div className="space-y-6">
+        <PageHeader
+          title="Attendance History"
+          subtitle="View attendance by section and date"
+          actions={
+            canViewTeacherAttendance ? (
+              <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
                 <button
-                  onClick={handleApplyFilters}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  type="button"
+                  onClick={() => setActiveTab('student')}
+                  className={[
+                    'px-3 py-2 text-xs font-semibold rounded-lg transition-colors',
+                    activeTab === 'student'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-700 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-white/5',
+                  ].join(' ')}
                 >
-                  Search
+                  Student Attendance
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('teacher')}
+                  className={[
+                    'px-3 py-2 text-xs font-semibold rounded-lg transition-colors',
+                    activeTab === 'teacher'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-700 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-white/5',
+                  ].join(' ')}
+                >
+                  Teacher Attendance
                 </button>
               </div>
+            ) : null
+          }
+        />
+
+        {/* Filters */}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">Filters</div>
+          <div className="mt-1 text-xs text-slate-600 dark:text-slate-300/70">
+            Select a section and date range. History is grouped as Section → Date → Records.
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="lg:col-span-2">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">Section</label>
+              <select
+                value={filters.sectionId}
+                onChange={(e) => handleFilterChange('sectionId', e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+              >
+                <option value="">Select Section…</option>
+                {sections.map((sec) => (
+                  <option key={sec._id || sec.id} value={sec._id || sec.id}>
+                    {sec.sectionName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">From</label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">To</label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300/70">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                disabled={activeTab === 'teacher'}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/60 disabled:opacity-60 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
+              >
+                <option value="all">All</option>
+                <option value="present">Present</option>
+                <option value="absent">Absent</option>
+                <option value="late">Late</option>
+              </select>
             </div>
           </div>
 
-          {canViewTeacherAttendance && activeTab === 'sessions' && (
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-slate-500 dark:text-slate-300/70">
+              {selectedSection ? (
+                <span>
+                  Selected: <span className="font-semibold text-slate-900 dark:text-white">{selectedSection.sectionName}</span>
+                </span>
+              ) : (
+                <span>Please select a section to view history.</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleApplyFilters}
+              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-indigo-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+
+        {canViewTeacherAttendance && activeTab === 'student' && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
               <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
                 Notify guardians by SMS that the student <strong>did not attend today</strong> (server date /
@@ -307,117 +446,71 @@ const AttendanceHistory = () => {
             </div>
           )}
 
-          {/* Sessions Table */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Section
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total Students
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Present
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Absent
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Session Duration
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {sessions.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                        <div className="flex flex-col items-center">
-                          <svg
-                            className="w-12 h-12 text-gray-400 mb-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
-                          <p className="text-lg font-medium">No attendance records found</p>
-                          <p className="text-sm mt-1">Try adjusting your filters or check back later</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    sessions.map((session) => (
-                      <tr key={session._id || session.sessionId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {session.date ? formatDate(session.date) : 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{session.sectionName || 'N/A'}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {session.totalStudents ?? 0}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                            {session.presentCount ?? 0}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                            {session.absentCount ?? 0}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {session.duration || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={() => handleViewDetails(session.sessionId || session._id)}
-                            disabled={!session.sessionId && !session._id}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            View Details
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+        {/* Section-based cards */}
+        {!filters.sectionId ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-white/10 dark:bg-slate-900/40">
+            <div className="mx-auto max-w-md">
+              <div className="text-lg font-semibold text-slate-900 dark:text-white">Select a section to view history</div>
+              <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+                Attendance history is grouped by section and date for easier analysis.
+              </div>
             </div>
           </div>
+        ) : (activeTab === 'teacher' ? loadingTeacher : loading) ? (
+          <HistorySkeleton cards={1} />
+        ) : sectionCards.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-white/10 dark:bg-slate-900/40">
+            <div className="mx-auto max-w-md">
+              <div className="text-lg font-semibold text-slate-900 dark:text-white">No attendance data for this section</div>
+              <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+                Try expanding the date range or clearing the status filter.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {sectionCards.map((c) => (
+              <AttendanceSectionCard
+                key={c.sectionId}
+                sectionName={c.sectionName}
+                totalStudents={c.totalStudents}
+                attendanceRate={c.attendanceRate}
+                expanded={expandedSections[c.sectionId] ?? true}
+                onToggleExpanded={() =>
+                  setExpandedSections((prev) => ({ ...prev, [c.sectionId]: !(prev[c.sectionId] ?? true) }))
+                }
+                timelineItems={c.timelineItems}
+                onViewDetails={(it) => {
+                  // pick first session for the date for details (student mode)
+                  if (activeTab === 'teacher') {
+                    setToast({ message: 'Teacher details view coming next (needs grouped check-in details UI).', type: 'info' });
+                    return;
+                  }
+                  const session = it?.raw?.items?.find((x) => x.kind === 'session')?.session;
+                  if (session) handleViewDetails(session.sessionId || session._id);
+                }}
+              />
+            ))}
+          </div>
+        )}
 
           {/* Session Details Modal */}
           {showModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-slate-200/70 dark:border-white/10">
                 {/* Modal Header */}
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div className="px-6 py-4 border-b border-slate-200/70 dark:border-white/10 flex justify-between items-center">
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">Session Details</h2>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Details</h2>
                     {sessionDetails?.session && (
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-slate-600 dark:text-slate-300/70 mt-1">
                         {sessionDetails.session.sectionName} - {formatDate(sessionDetails.session.date)}
                       </p>
                     )}
                   </div>
                   <button
                     onClick={closeModal}
-                    className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
@@ -434,33 +527,33 @@ const AttendanceHistory = () => {
                 <div className="flex-1 overflow-y-auto p-6">
                   {loadingDetails ? (
                     <div className="flex items-center justify-center py-12">
-                      <Loader />
+                      <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-indigo-600" />
                     </div>
                   ) : sessionDetails ? (
                     <>
                       {/* Session Summary */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                          <p className="text-sm text-gray-600">Total Students</p>
-                          <p className="text-2xl font-bold text-blue-900">
+                        <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300/70">Total Students</p>
+                          <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
                             {sessionDetails.session.totalStudents}
                           </p>
                         </div>
-                        <div className="bg-green-50 p-4 rounded-lg">
-                          <p className="text-sm text-gray-600">Present</p>
-                          <p className="text-2xl font-bold text-green-900">
+                        <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300/70">Present</p>
+                          <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
                             {sessionDetails.session.presentCount}
                           </p>
                         </div>
-                        <div className="bg-red-50 p-4 rounded-lg">
-                          <p className="text-sm text-gray-600">Absent</p>
-                          <p className="text-2xl font-bold text-red-900">
+                        <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300/70">Absent</p>
+                          <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
                             {sessionDetails.session.absentCount}
                           </p>
                         </div>
-                        <div className="bg-yellow-50 p-4 rounded-lg">
-                          <p className="text-sm text-gray-600">Late</p>
-                          <p className="text-2xl font-bold text-yellow-900">
+                        <div className="rounded-2xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300/70">Late</p>
+                          <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
                             {sessionDetails.session.lateCount}
                           </p>
                         </div>
@@ -498,8 +591,8 @@ const AttendanceHistory = () => {
 
                       {/* Student Attendance Table */}
                       <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-slate-200 dark:divide-white/10">
+                          <thead className="bg-slate-100 dark:bg-white/5">
                             <tr>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Roll No
@@ -530,9 +623,9 @@ const AttendanceHistory = () => {
                               </th>
                             </tr>
                           </thead>
-                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                          <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-white/10">
                             {sessionDetails.studentAttendance?.map((student, index) => (
-                              <tr key={student.studentId || index} className="hover:bg-gray-50">
+                              <tr key={student.studentId || index} className="hover:bg-slate-50 dark:hover:bg-white/[0.04] transition-colors">
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                                   {student.rollNo}
                                 </td>
@@ -558,13 +651,7 @@ const AttendanceHistory = () => {
                                   {student.gender ? student.gender.charAt(0).toUpperCase() + student.gender.slice(1) : '—'}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <span
-                                    className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeColor(
-                                      student.status
-                                    )}`}
-                                  >
-                                    {student.status.charAt(0).toUpperCase() + student.status.slice(1)}
-                                  </span>
+                                  <StatusPill status={student.status} />
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                   {student.timestamp ? (
@@ -609,10 +696,10 @@ const AttendanceHistory = () => {
                 </div>
 
                 {/* Modal Footer */}
-                <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+                <div className="px-6 py-4 border-t border-slate-200/70 dark:border-white/10 flex justify-end">
                   <button
                     onClick={closeModal}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-100 dark:hover:bg-white/5"
                   >
                     Close
                   </button>
@@ -620,9 +707,8 @@ const AttendanceHistory = () => {
               </div>
             </div>
           )}
-        </main>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 
