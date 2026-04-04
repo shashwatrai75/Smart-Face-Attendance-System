@@ -9,6 +9,9 @@ export default {
     '!bg-green-500', '!text-white',
     '!bg-yellow-400', '!text-gray-900',
     '!bg-red-500',
+    'animate-dashboard-in',
+    'animate-dashboard-in-delay',
+    'animate-dashboard-in-delay-2',
   ],
   theme: {
     extend: {
@@ -26,9 +29,18 @@ export default {
           900: '#1e3a8a',
         },
       },
+      keyframes: {
+        dashboardIn: {
+          from: { opacity: '0', transform: 'translateY(12px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'bounce-slow': 'bounce 2s infinite',
+        'dashboard-in': 'dashboardIn 0.55s ease-out both',
+        'dashboard-in-delay': 'dashboardIn 0.55s ease-out 0.1s both',
+        'dashboard-in-delay-2': 'dashboardIn 0.55s ease-out 0.2s both',
       },
       backdropBlur: {
         xs: '2px',

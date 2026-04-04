@@ -1,46 +1,75 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getStats } from '../api/api';
+import { getStats, getUsers, getSections } from '../api/api';
 import Toast from '../components/Toast';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
-import StatCard from '../components/dashboard/StatCard';
-import SkeletonCard from '../components/dashboard/SkeletonCard';
+import DashboardCards from '../components/dashboard/admin/DashboardCards';
+import ChartsSection from '../components/dashboard/admin/ChartsSection';
+import ActivityPanel from '../components/dashboard/admin/ActivityPanel';
+import SystemStatusCard from '../components/dashboard/admin/SystemStatusCard';
+import UsersTable from '../components/dashboard/admin/UsersTable';
+import DashboardQuickActions from '../components/dashboard/admin/DashboardQuickActions';
+
+const defaultStats = {
+  totalUsers: 0,
+  activeMembers: 0,
+  totalSections: 0,
+  totalStudents: 0,
+  totalAttendance: 0,
+  todayAttendance: 0,
+  verifiedUsers: 0,
+  usersWithRecentLogin: 0,
+  newUsersThisMonth: 0,
+};
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    fetchStats();
+    const load = async () => {
+      setLoading(true);
+      setLoadError(false);
+      try {
+        const [statsR, usersR, sectionsR] = await Promise.allSettled([
+          getStats(),
+          getUsers(),
+          getSections(),
+        ]);
+
+        if (statsR.status === 'fulfilled' && statsR.value?.stats) {
+          setStats({ ...defaultStats, ...statsR.value.stats });
+        } else {
+          setStats(defaultStats);
+          setLoadError(true);
+          setToast({ message: 'Failed to load dashboard stats', type: 'error' });
+        }
+
+        if (usersR.status === 'fulfilled' && Array.isArray(usersR.value?.users)) {
+          setUsers(usersR.value.users);
+        } else {
+          setUsers([]);
+        }
+
+        if (sectionsR.status === 'fulfilled' && Array.isArray(sectionsR.value?.sections)) {
+          setSections(sectionsR.value.sections);
+        } else {
+          setSections([]);
+        }
+      } catch {
+        setStats(defaultStats);
+        setLoadError(true);
+        setToast({ message: 'Failed to load dashboard', type: 'error' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
-
-  const fetchStats = async () => {
-    try {
-      const response = await getStats();
-      setStats(response.stats || {
-        totalUsers: 0,
-        activeMembers: 0,
-        totalSections: 0,
-        totalStudents: 0,
-        totalAttendance: 0,
-        todayAttendance: 0,
-      });
-    } catch (err) {
-      setToast({ message: 'Failed to load stats', type: 'error' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cards = [
-    { icon: '👥', label: 'Total Users', value: stats?.totalUsers ?? 0, tone: 'primary', trend: { value: 12, label: 'vs last week' } },
-    { icon: '⚡', label: 'Active Members', value: stats?.activeMembers ?? 0, tone: 'success', trend: { value: 4, label: 'vs last week' } },
-    { icon: '🏫', label: 'Total Sections', value: stats?.totalSections ?? 0, tone: 'warning', trend: { value: 1, label: 'vs last week' } },
-    { icon: '🎓', label: 'Total Students', value: stats?.totalStudents ?? 0, tone: 'primary', trend: { value: 6, label: 'vs last week' } },
-    { icon: '📅', label: 'Total Attendance', value: stats?.totalAttendance ?? 0, tone: 'success', trend: { value: 9, label: 'vs last week' } },
-    { icon: '📊', label: "Today's Attendance", value: stats?.todayAttendance ?? 0, tone: 'danger', trend: { value: -2, label: 'vs yesterday' } },
-  ];
 
   return (
     <DashboardLayout pageTitle="Office Admin Dashboard">
@@ -51,198 +80,54 @@ const AdminDashboard = () => {
           onClose={() => setToast(null)}
         />
       )}
-      <div className="w-full space-y-6">
-        {/* Header row */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+
+      <div className="w-full space-y-10 animate-dashboard-in motion-reduce:animate-none motion-reduce:opacity-100">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <h1 className="text-[28px] font-bold tracking-tight text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
               Office Admin Dashboard
             </h1>
-            <p className="mt-2 text-base text-slate-600 dark:text-slate-300/70">
-              Overview of your system health, usage, and attendance activity.
+            <p className="mt-2 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-slate-300">
+              System health, attendance signals, and shortcuts—organized for daily operations.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              to="/admin/sections"
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-base font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-400/60"
-            >
-              <span aria-hidden="true" className="mr-2 text-[20px] leading-none">🏫</span>
-              Create Section
-            </Link>
+          <Link
+            to="/admin/sections"
+            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-violet-400/50"
+          >
+            Create section
+          </Link>
+        </header>
+
+        <section className="space-y-4 animate-dashboard-in-delay motion-reduce:animate-none motion-reduce:opacity-100">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">Stats overview</h2>
+            <span className="text-sm text-gray-500 dark:text-slate-400">Updated with your latest sync</span>
+          </div>
+          <DashboardCards loading={loading} stats={stats} />
+        </section>
+
+        <div className="space-y-10 animate-dashboard-in-delay-2 motion-reduce:animate-none motion-reduce:opacity-100">
+          <DashboardQuickActions />
+
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">Analytics</h2>
+            <ChartsSection loading={loading} stats={stats} sections={sections} />
+          </section>
+
+          <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,440px)]">
+            <div className="min-w-0 space-y-8">
+              <UsersTable loading={loading} users={users} />
+            </div>
+            <aside className="flex min-w-0 flex-col gap-8">
+              <ActivityPanel loading={loading} stats={stats} />
+              <SystemStatusCard loading={loading} stats={stats} loadError={loadError} />
+            </aside>
           </div>
         </div>
-
-        {/* Stats overview */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
-              <span aria-hidden="true" className="mr-2 text-[20px] leading-none">📊</span>
-              Stats Overview
-            </h2>
-            <span className="text-xs text-slate-500 dark:text-slate-300/70">
-              Updated just now
-            </span>
-          </div>
-
-          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
-            {loading
-              ? Array.from({ length: 4 }).map((_, idx) => <SkeletonCard key={idx} />)
-              : cards.slice(0, 4).map((c) => (
-                  <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} trend={c.trend} icon={c.icon} />
-                ))}
-          </div>
-        </section>
-
-        {/* Quick actions */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
-            <span aria-hidden="true" className="mr-2 text-[20px] leading-none">⚡</span>
-            Quick Actions
-          </h2>
-          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
-            <Link
-              to="/admin/sections"
-              className="group rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-slate-900/40"
-            >
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-indigo-500/10 p-3 text-indigo-700 ring-1 ring-indigo-500/15 dark:bg-indigo-400/10 dark:text-indigo-200 dark:ring-indigo-300/15">
-                  <span className="text-[22px] leading-none" aria-hidden="true">🏫</span>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-lg font-semibold text-slate-900 dark:text-white">Manage Sections</div>
-                  <div className="mt-1 text-base text-slate-600 dark:text-slate-300/70">
-                    Create and organize classes and departments.
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 text-sm font-semibold text-indigo-600 dark:text-indigo-300">
-                Open →
-              </div>
-            </Link>
-
-            <Link
-              to="/admin/users"
-              className="group rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-slate-900/40"
-            >
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-700 ring-1 ring-emerald-500/15 dark:bg-emerald-400/10 dark:text-emerald-200 dark:ring-emerald-300/15">
-                  <span className="text-[22px] leading-none" aria-hidden="true">👥</span>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-lg font-semibold text-slate-900 dark:text-white">User Management</div>
-                  <div className="mt-1 text-base text-slate-600 dark:text-slate-300/70">
-                    Invite users, manage roles, and access.
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 text-sm font-semibold text-emerald-700 dark:text-emerald-200">
-                Open →
-              </div>
-            </Link>
-
-            <Link
-              to="/admin/reports"
-              className="group rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-slate-900/40"
-            >
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-amber-500/10 p-3 text-amber-800 ring-1 ring-amber-500/15 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-300/15">
-                  <span className="text-[22px] leading-none" aria-hidden="true">📈</span>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-lg font-semibold text-slate-900 dark:text-white">Reports</div>
-                  <div className="mt-1 text-base text-slate-600 dark:text-slate-300/70">
-                    Export and review attendance analytics.
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                Open →
-              </div>
-            </Link>
-          </div>
-        </section>
-
-        {/* Recent activity */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
-            <span aria-hidden="true" className="mr-2 text-[20px] leading-none">⚡</span>
-            Recent Activity / Reports
-          </h2>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-            <div className="lg:col-span-2 rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-base font-semibold text-slate-900 dark:text-white">System snapshot</div>
-                  <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
-                    High-level view of attendance and usage.
-                  </div>
-                </div>
-                <Link to="/admin/history" className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200">
-                  View history
-                </Link>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                {loading ? (
-                  <>
-                    <SkeletonCard lines={1} />
-                    <SkeletonCard lines={1} />
-                  </>
-                ) : (
-                  <>
-                    <StatCard label="Total Attendance" value={cards[4].value} tone={cards[4].tone} trend={cards[4].trend} icon={cards[4].icon} />
-                    <StatCard label="Today's Attendance" value={cards[5].value} tone={cards[5].tone} trend={cards[5].trend} icon={cards[5].icon} />
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
-              <div className="text-base font-semibold text-slate-900 dark:text-white">
-                <span aria-hidden="true" className="mr-2">⚡</span>
-                Activity
-              </div>
-              <div className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
-                Latest events in your workspace.
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {!loading && (!stats || Object.values(stats).every((v) => (typeof v === 'number' ? v === 0 : !v))) ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-white/10 dark:text-slate-300/70">
-                    No recent activity yet. Create a section to get started.
-                  </div>
-                ) : loading ? (
-                  <div className="space-y-3">
-                    <div className="h-10 animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />
-                    <div className="h-10 animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />
-                    <div className="h-10 animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="rounded-xl border border-slate-200/70 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                      Stats updated successfully
-                      <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-300/70">Just now</div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200/70 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                      Reports ready to export
-                      <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-300/70">Today</div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200/70 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                      Review attendance history
-                      <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-300/70">This week</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
     </DashboardLayout>
   );
 };
 
 export default AdminDashboard;
-
