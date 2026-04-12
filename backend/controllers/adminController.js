@@ -6,6 +6,7 @@ const Section = require('../models/Section');
 const Student = require('../models/Student');
 const SectionMember = require('../models/SectionMember');
 const logger = require('../utils/logger');
+const { dedupeUsersByEmailForResponse } = require('../utils/userDedupe');
 const { todayDate } = require('../utils/timeHelpers');
 const {
   isSmsFullyConfigured,
@@ -119,6 +120,8 @@ const getUsers = async (req, res, next) => {
     if (req.user.role === 'admin') {
       users = users.filter((u) => u.role !== 'admin' && u.role !== 'superadmin');
     }
+
+    users = dedupeUsersByEmailForResponse(users);
 
     res.json({
       success: true,

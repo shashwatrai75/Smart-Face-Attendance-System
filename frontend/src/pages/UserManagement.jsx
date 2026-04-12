@@ -300,15 +300,29 @@ const UserManagement = () => {
       }
 
       if (action === 'delete') {
+        const idsToDelete = [...selectedUsers];
         setConfirmDialog({
-          message: `Are you sure you want to delete ${selectedUsers.length} user(s)?`,
+          message: `Are you sure you want to delete ${idsToDelete.length} user(s)?`,
           onConfirm: async () => {
-            await Promise.all(selectedUsers.map((id) => deleteUser(id)));
-            setSelectedUsers([]);
-            fetchUsers();
-            setToast({ message: `${selectedUsers.length} user(s) deleted successfully`, type: 'success' });
+            try {
+              await Promise.all(idsToDelete.map((id) => deleteUser(id)));
+              setSelectedUsers([]);
+              fetchUsers();
+              setToast({
+                message: `${idsToDelete.length} user(s) deleted successfully`,
+                type: 'success',
+              });
+            } catch (err) {
+              setToast({
+                message: err.response?.data?.error || err.error || 'Bulk delete failed',
+                type: 'error',
+              });
+            } finally {
+              setConfirmDialog(null);
+            }
           },
         });
+        return;
       } else if (action === 'activate') {
         await Promise.all(
           selectedUsers.map((id) => {
@@ -549,14 +563,39 @@ const UserManagement = () => {
         setSelectedUser(null);
       }
     } catch (err) {
-      setToast({ message: err.error || 'Failed to delete user', type: 'error' });
+      setToast({
+        message: err.response?.data?.error || err.error || 'Failed to delete user',
+        type: 'error',
+      });
     }
     setConfirmDialog(null);
   };
 
+  const handleDeleteUser = (user) => {
+    const userId = user._id || user.id;
+    if (!userId) {
+      setToast({ message: 'Unable to delete: missing user id', type: 'error' });
+      return;
+    }
+    const canDelete =
+      currentUser?.role === 'superadmin' ||
+      (user.role !== 'admin' && user.role !== 'superadmin');
+    if (!canDelete) {
+      setToast({
+        message: 'You cannot delete Office Admin or Superadmin accounts.',
+        type: 'error',
+      });
+      return;
+    }
+    setConfirmDialog({
+      message: `Are you sure you want to delete ${user.name}?`,
+      onConfirm: () => handleDelete(userId),
+    });
+  };
+
   const handleRowClick = (user, e) => {
-    // Don't open modal if clicking on action buttons
-    if (e.target.closest('button') || e.target.closest('td:last-child')) {
+    // Don't open modal if clicking actions column or controls
+    if (e.target.closest('button') || e.target.closest('[data-user-actions]')) {
       return;
     }
     setSelectedUser(user);
@@ -1474,7 +1513,7 @@ const UserManagement = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-4 py-4" data-user-actions onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
                                 <ActionIconButton
                                   title="View"

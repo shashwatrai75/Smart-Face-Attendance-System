@@ -7,6 +7,132 @@ const { exportAttendance } = require('../utils/excelExport');
 const logger = require('../utils/logger');
 const mongoose = require('mongoose');
 
+function toObjectId(id) {
+  if (id == null || String(id).trim() === '') return null;
+  const s = String(id).trim();
+  return mongoose.Types.ObjectId.isValid(s) ? new mongoose.Types.ObjectId(s) : null;
+}
+
+/**
+ * Resolves which sections apply for report queries (optional sectionId, optional classId, member scope).
+ * sectionId wins over classId when both are sent.
+ */
+async function resolveReportSectionScope(user, { sectionId, classId }) {
+  const secTrim = sectionId != null && String(sectionId).trim() !== '' ? String(sectionId).trim() : '';
+  const clsTrim =
+    classId != null && String(classId).trim() !== '' && !secTrim ? String(classId).trim() : '';
+
+  let allowedForMember = null;
+  if (user.role === 'member') {
+    const taught = await ClassSession.find({ teacherId: user._id }).select('sectionId').lean();
+    const raw = taught.map((s) => s.sectionId).filter(Boolean);
+    if (user.sectionId) raw.push(user.sectionId);
+    const seen = new Set();
+    allowedForMember = [];
+    for (const x of raw) {
+      const k = x.toString();
+      if (!seen.has(k)) {
+        seen.add(k);
+        allowedForMember.push(x);
+      }
+    }
+    if (allowedForMember.length === 0) {
+      return { kind: 'empty_member' };
+    }
+  }
+
+  const intersect = (ids) => {
+    if (!allowedForMember) return ids;
+    const allow = new Set(allowedForMember.map((x) => x.toString()));
+    return ids.filter((id) => allow.has(id.toString()));
+  };
+
+  if (secTrim) {
+    const sid = toObjectId(secTrim);
+    if (!sid) return { kind: 'bad_params' };
+    if (allowedForMember && !allowedForMember.some((x) => x.equals(sid))) {
+      return { kind: 'forbidden' };
+    }
+    return {
+      kind: 'ok',
+      sectionQuery: { _id: sid },
+      attendanceSectionFilter: sid,
+      studentSectionIds: [sid],
+    };
+  }
+
+  if (clsTrim) {
+    const cid = toObjectId(clsTrim);
+    if (!cid) return { kind: 'bad_params' };
+    const children = await Section.find({ parentSectionId: cid }).select('_id').lean();
+    let ids = children.map((c) => c._id);
+    ids.push(cid);
+    ids = intersect(ids);
+    if (ids.length === 0) {
+      return {
+        kind: 'ok',
+        sectionQuery: { _id: { $in: [] } },
+        attendanceSectionFilter: { $in: [] },
+        studentSectionIds: [],
+      };
+    }
+    return {
+      kind: 'ok',
+      sectionQuery: { _id: { $in: ids } },
+      attendanceSectionFilter: { $in: ids },
+      studentSectionIds: ids,
+    };
+  }
+
+  if (allowedForMember) {
+    return {
+      kind: 'ok',
+      sectionQuery: { _id: { $in: allowedForMember } },
+      attendanceSectionFilter: { $in: allowedForMember },
+      studentSectionIds: allowedForMember,
+    };
+  }
+
+  return {
+    kind: 'ok',
+    sectionQuery: {},
+    attendanceSectionFilter: undefined,
+    studentSectionIds: null,
+  };
+}
+
+function applyAttendanceSectionFilter(attendanceQuery, filter) {
+  if (filter === undefined) return;
+  if (filter && filter.$in && filter.$in.length === 0) {
+    attendanceQuery.sectionId = { $in: [] };
+    return;
+  }
+  attendanceQuery.sectionId = filter;
+}
+
+function applySessionSectionFilter(sessionQuery, filter, { memberLecturerId }) {
+  if (memberLecturerId) {
+    sessionQuery.lecturerId = memberLecturerId;
+  }
+  if (filter === undefined) return;
+  if (filter && filter.$in && filter.$in.length === 0) {
+    sessionQuery.sectionId = { $in: [] };
+    return;
+  }
+  sessionQuery.sectionId = filter;
+}
+
+function handleScopeError(res, scope) {
+  if (scope.kind === 'forbidden') {
+    res.status(403).json({ error: 'Access denied to this section' });
+    return true;
+  }
+  if (scope.kind === 'bad_params') {
+    res.status(400).json({ error: 'Invalid section or class id' });
+    return true;
+  }
+  return false;
+}
 
 const exportReport = async (req, res, next) => {
   try {
@@ -76,44 +202,34 @@ const exportReport = async (req, res, next) => {
 const getSummary = async (req, res, next) => {
   try {
     const user = req.user;
-    const { startDate, endDate, sectionId } = req.query;
+    const { startDate, endDate, sectionId, classId } = req.query;
 
-    let sectionQuery = {};
-    let attendanceQuery = {};
-    let sessionQuery = { status: { $in: ['active', 'completed'] } };
-
-    if (user.role === 'superadmin' || user.role === 'admin') {
-      // no extra filters
-    } else if (user.role === 'hr') {
-      // HR can view class attendance reports
-    } else if (user.role === 'member') {
-      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
-      const sectionIds = taughtSessions.map((s) => s.sectionId);
-      if (user.sectionId) sectionIds.push(user.sectionId);
-      if (sectionIds.length === 0) {
-        return res.json({
-          success: true,
-          summary: {
-            totalSections: 0,
-            totalStudents: 0,
-            averageAttendance: 0,
-            totalSessions: 0,
-          },
-        });
-      }
-      sectionQuery._id = { $in: sectionIds };
-      attendanceQuery.sectionId = { $in: sectionIds };
-      sessionQuery.sectionId = { $in: sectionIds };
-      sessionQuery.lecturerId = user._id;
-    } else {
+    if (!['superadmin', 'admin', 'hr', 'member'].includes(user.role)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    if (sectionId) {
-      sectionQuery._id = sectionId;
-      attendanceQuery.sectionId = sectionId;
-      sessionQuery.sectionId = sectionId;
+    const scope = await resolveReportSectionScope(user, { sectionId, classId });
+    if (scope.kind === 'empty_member') {
+      return res.json({
+        success: true,
+        summary: {
+          totalSections: 0,
+          totalStudents: 0,
+          averageAttendance: 0,
+          totalSessions: 0,
+          totalAttendanceRecords: 0,
+        },
+      });
     }
+    if (handleScopeError(res, scope)) return;
+
+    const attendanceQuery = {};
+    applyAttendanceSectionFilter(attendanceQuery, scope.attendanceSectionFilter);
+
+    const sessionQuery = { status: { $in: ['active', 'completed'] } };
+    applySessionSectionFilter(sessionQuery, scope.attendanceSectionFilter, {
+      memberLecturerId: user.role === 'member' ? user._id : null,
+    });
 
     if (startDate || endDate) {
       attendanceQuery.date = attendanceQuery.date || {};
@@ -128,19 +244,19 @@ const getSummary = async (req, res, next) => {
       }
     }
 
-    const totalSections = await Section.countDocuments(sectionQuery);
+    const totalSections = await Section.countDocuments(scope.sectionQuery);
 
-    const sectionIdsForStudents = sectionId
-      ? [sectionId]
-      : user.role === 'member'
-        ? ((await ClassSession.find({ teacherId: user._id }).select('sectionId')).map((s) => s.sectionId).concat(user.sectionId ? [user.sectionId] : []))
-        : (await Section.find(sectionQuery).select('_id')).map((s) => s._id);
+    const sectionIdsForStudents =
+      scope.studentSectionIds !== null
+        ? scope.studentSectionIds
+        : (await Section.find(scope.sectionQuery).select('_id')).map((s) => s._id);
 
-    const totalStudents = await Student.countDocuments({ sectionId: { $in: sectionIdsForStudents } });
+    const totalStudents = await Student.countDocuments({
+      sectionId: { $in: sectionIdsForStudents },
+    });
 
     const totalSessions = await AttendanceSession.countDocuments(sessionQuery);
 
-    // Use aggregation to get counts based on attendanceQuery
     const aggMatch = { ...attendanceQuery };
     if (aggMatch.sectionId && typeof aggMatch.sectionId === 'string' && mongoose.Types.ObjectId.isValid(aggMatch.sectionId)) {
       aggMatch.sectionId = new mongoose.Types.ObjectId(aggMatch.sectionId);
@@ -172,6 +288,7 @@ const getSummary = async (req, res, next) => {
         totalStudents,
         averageAttendance: parseFloat(averageAttendance),
         totalSessions,
+        totalAttendanceRecords: stats.totalRecords,
       },
     });
   } catch (error) {
@@ -183,32 +300,20 @@ const getSummary = async (req, res, next) => {
 const getClassWiseData = async (req, res, next) => {
   try {
     const user = req.user;
-    const { startDate, endDate, sectionId } = req.query;
+    const { startDate, endDate, sectionId, classId } = req.query;
 
-    let sectionQuery = {};
-    let attendanceQuery = {};
-
-    if (user.role === 'superadmin' || user.role === 'admin') {
-      sectionQuery = {};
-    } else if (user.role === 'hr') {
-      sectionQuery = {};
-    } else if (user.role === 'member') {
-      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
-      const sectionIds = taughtSessions.map((s) => s.sectionId);
-      if (user.sectionId) sectionIds.push(user.sectionId);
-      if (sectionIds.length === 0) {
-        return res.json({ success: true, classWiseData: [] });
-      }
-      sectionQuery = { _id: { $in: sectionIds } };
-      attendanceQuery.sectionId = { $in: sectionIds };
-    } else {
+    if (!['superadmin', 'admin', 'hr', 'member'].includes(user.role)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    if (sectionId) {
-      sectionQuery._id = sectionId;
-      attendanceQuery.sectionId = sectionId;
+    const scope = await resolveReportSectionScope(user, { sectionId, classId });
+    if (scope.kind === 'empty_member') {
+      return res.json({ success: true, classWiseData: [] });
     }
+    if (handleScopeError(res, scope)) return;
+
+    const attendanceQuery = {};
+    applyAttendanceSectionFilter(attendanceQuery, scope.attendanceSectionFilter);
 
     if (startDate || endDate) {
       attendanceQuery.date = {};
@@ -216,7 +321,7 @@ const getClassWiseData = async (req, res, next) => {
       if (endDate) attendanceQuery.date.$lte = endDate;
     }
 
-    const sections = await Section.find(sectionQuery).select('_id sectionName sectionType');
+    const sections = await Section.find(scope.sectionQuery).select('_id sectionName sectionType');
 
     const aggMatch = { ...attendanceQuery };
     if (aggMatch.sectionId && typeof aggMatch.sectionId === 'string' && mongoose.Types.ObjectId.isValid(aggMatch.sectionId)) {
@@ -274,24 +379,20 @@ const getClassWiseData = async (req, res, next) => {
 const getTrendData = async (req, res, next) => {
   try {
     const user = req.user;
-    const { startDate, endDate, sectionId } = req.query;
+    const { startDate, endDate, sectionId, classId } = req.query;
 
-    let attendanceQuery = {};
-
-    if (user.role === 'superadmin' || user.role === 'admin') {
-      // all attendance
-    } else if (user.role === 'hr') {
-      // HR can view class attendance reports
-    } else if (user.role === 'member') {
-      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
-      const sectionIds = taughtSessions.map((s) => s.sectionId);
-      if (user.sectionId) sectionIds.push(user.sectionId);
-      attendanceQuery.sectionId = { $in: sectionIds };
-    } else {
+    if (!['superadmin', 'admin', 'hr', 'member'].includes(user.role)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    if (sectionId) attendanceQuery.sectionId = sectionId;
+    const scope = await resolveReportSectionScope(user, { sectionId, classId });
+    if (scope.kind === 'empty_member') {
+      return res.json({ success: true, trendData: [] });
+    }
+    if (handleScopeError(res, scope)) return;
+
+    const attendanceQuery = {};
+    applyAttendanceSectionFilter(attendanceQuery, scope.attendanceSectionFilter);
 
     if (startDate || endDate) {
       attendanceQuery.date = {};

@@ -27,7 +27,8 @@ const login = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase() })
+      .sort({ lastLogin: -1, updatedAt: -1 });
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });

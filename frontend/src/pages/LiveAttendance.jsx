@@ -191,7 +191,7 @@ const LiveAttendance = () => {
         setDepartmentRecords(new Map());
         setIsSessionActive(true);
         setSessionStartedAt(new Date());
-        setStatusText('Camera ready. Click "Scan Face" to check-in/out.');
+        setStatusText('Camera ready. Click Verify to check-in/out.');
         setActiveSectionName('');
         setToast({ message: 'Check-in mode active!', type: 'success' });
       } catch (err) {
@@ -261,7 +261,7 @@ const LiveAttendance = () => {
       setAttendanceRecords(new Map());
       setLiveFeed([]);
       setIsSessionActive(true);
-      setStatusText('Camera ready. Click "Scan Face" to recognize students.');
+      setStatusText('Camera ready. Click Scan & Mark to recognize students.');
       setToast({ message: 'Attendance session started!', type: 'success' });
     } catch (err) {
       setToast({ message: err.error || 'Failed to start session', type: 'error' });
@@ -687,7 +687,7 @@ const LiveAttendance = () => {
                     disabled={isScanning}
                     className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-emerald-700 hover:shadow-md disabled:opacity-60"
                   >
-                    {isDepartmentMode ? 'Scan Face' : 'Scan & Mark'}
+                    {isDepartmentMode ? 'Verify' : 'Scan & Mark'}
                   </button>
                   <button
                     type="button"
@@ -762,7 +762,7 @@ const LiveAttendance = () => {
               <div>
                 <div className="text-sm font-semibold text-slate-900 dark:text-white">Camera Preview</div>
                 <div className="mt-1 text-xs text-slate-600 dark:text-slate-300/70">
-                  Align face inside the frame and scan.
+                  Align your face in the frame, then use Verify or Scan & Mark.
                 </div>
               </div>
               <div className={['text-xs font-semibold', cameraReady ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'].join(' ')}>
@@ -770,14 +770,13 @@ const LiveAttendance = () => {
               </div>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200/70 dark:border-white/10">
+            <div className="relative mt-4 aspect-video w-full min-h-[220px] overflow-hidden rounded-2xl border border-slate-200/70 bg-black dark:border-white/10">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full scale-x-[-1] bg-black"
-                style={{ width: '100%', height: '360px', objectFit: 'cover' }}
+                className="absolute inset-0 block h-full w-full object-cover object-center [transform:scaleX(-1)]"
               />
             </div>
           </div>

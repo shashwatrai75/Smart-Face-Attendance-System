@@ -69,20 +69,21 @@ const FaceIcon = (props) => (
   </svg>
 );
 
-const EyeIcon = ({ open, ...props }) => {
+const EyeIcon = ({ open, strokeWidth: sw = 1.75, ...props }) => {
+  const w = String(sw);
   if (open) {
     return (
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
         <path
           d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"
           stroke="currentColor"
-          strokeWidth="1.6"
+          strokeWidth={w}
           strokeLinejoin="round"
         />
         <path
           d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
           stroke="currentColor"
-          strokeWidth="1.6"
+          strokeWidth={w}
         />
       </svg>
     );
@@ -93,25 +94,25 @@ const EyeIcon = ({ open, ...props }) => {
       <path
         d="M3 4.5 21 19.5"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth={w}
         strokeLinecap="round"
       />
       <path
         d="M10.7 9.2A3 3 0 0 0 12 15a3 3 0 0 0 2.8-1.9"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth={w}
         strokeLinecap="round"
       />
       <path
         d="M6.2 6.7C3.9 8.3 2.5 12 2.5 12s3.5 7 9.5 7c2 0 3.8-.7 5.3-1.7"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth={w}
         strokeLinecap="round"
       />
       <path
         d="M9.6 5.3A10.6 10.6 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-2.7 3.7"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth={w}
         strokeLinecap="round"
       />
     </svg>
@@ -273,18 +274,21 @@ const Login = () => {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-white/15 bg-white/5 px-11 py-3 pr-12 text-white placeholder:text-white/35 outline-none transition-all duration-200 focus:border-purple-300/40 focus:ring-2 focus:ring-purple-400/60"
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-11 py-3 pr-[5.75rem] text-white placeholder:text-white/35 outline-none transition-all duration-200 focus:border-purple-300/40 focus:ring-2 focus:ring-purple-400/60 sm:pr-[6.25rem]"
                 placeholder="Enter your password"
                 required
                 autoComplete={rememberMe ? 'current-password' : 'off'}
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-white/50 hover:text-white/80 hover:bg-white/10 focus:outline-none transition-colors duration-200"
+                onClick={() => setShowPassword((s) => !s)}
+                className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5 rounded-lg border border-violet-400/50 bg-violet-600/40 px-2.5 py-2 text-xs font-semibold text-violet-50 shadow-sm shadow-violet-900/30 backdrop-blur-sm transition hover:border-fuchsia-300/55 hover:bg-violet-500/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-purple-950/50"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                title={showPassword ? 'Hide password' : 'Show password'}
               >
-                <EyeIcon open={showPassword} className="h-5 w-5" />
+                <EyeIcon open={showPassword} className="h-4 w-4 shrink-0" strokeWidth={2} />
+                <span className="select-none">{showPassword ? 'Hide' : 'Show'}</span>
               </button>
             </div>
           </div>
@@ -314,31 +318,20 @@ const Login = () => {
             </div>
           )}
 
-          <div className="space-y-3">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 py-3 text-white shadow-[0_18px_40px_rgba(99,102,241,0.35)] transition-all duration-200 font-semibold text-base hover:shadow-[0_22px_55px_rgba(147,51,234,0.35)] hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="h-5 w-5 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />
-                  Logging in...
-                </span>
-              ) : (
-                'Login'
-              )}
-            </button>
-
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => setToast({ message: 'Face login will be added next.', type: 'info' })}
-              className="w-full rounded-xl border border-white/20 bg-white/5 py-3 text-white/90 transition-all duration-200 font-semibold text-base hover:bg-white/10 hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              Scan Face to Login
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-700 py-3 text-white shadow-[0_18px_44px_rgba(147,51,234,0.45)] transition-all duration-200 font-semibold text-base hover:shadow-[0_22px_52px_rgba(217,70,239,0.4)] hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="h-5 w-5 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />
+                Logging in...
+              </span>
+            ) : (
+              'Login'
+            )}
+          </button>
         </form>
 
             <div className="mt-7 border-t border-white/10 pt-6 text-center">

@@ -1,24 +1,44 @@
+import { createPortal } from 'react-dom';
+
 const ConfirmDialog = ({ message, onConfirm, onCancel }) => {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md dark:border dark:border-gray-700 w-full mx-4">
-        <p className="text-gray-800 dark:text-gray-200 mb-4">{message}</p>
+  const root =
+    typeof document !== 'undefined' ? document.body : null;
+  if (!root) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:border dark:border-gray-700 dark:bg-gray-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="mb-4 text-gray-800 dark:text-gray-200">{message}</p>
         <div className="flex justify-end gap-2">
           <button
+            type="button"
             onClick={onCancel}
-            className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500"
+            className="rounded bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
           >
             Cancel
           </button>
           <button
-            onClick={onConfirm}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            type="button"
+            onClick={() => {
+              onConfirm?.();
+            }}
+            className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
           >
             Confirm
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    root
   );
 };
 

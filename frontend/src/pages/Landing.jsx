@@ -1,11 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import FaceScanOverlay from '../components/FaceScanOverlay';
 
 const Landing = () => {
   const navigate = useNavigate();
-  const [isLaunching, setIsLaunching] = useState(false);
-  const [statusText, setStatusText] = useState('Initializing AI Face Recognition...');
 
   const features = [
     {
@@ -68,33 +64,16 @@ const Landing = () => {
   const steps = [
     { num: 1, title: 'Login to the System', description: 'Sign in with your credentials' },
     { num: 2, title: 'Select Section', description: 'Choose class or department' },
-    { num: 3, title: 'Scan Face', description: 'Quick, contactless verification' },
+    { num: 3, title: 'Verify attendance', description: 'Quick, contactless check-in for your session' },
     { num: 4, title: 'Attendance Recorded Securely', description: 'Stored with encryption' },
   ];
 
-  useEffect(() => {
-    if (!isLaunching) return;
-
-    const timers = [
-      window.setTimeout(() => setStatusText('Mapping facial features...'), 1000),
-      window.setTimeout(() => setStatusText('Verification successful'), 2000),
-      window.setTimeout(() => navigate('/login'), 3000),
-    ];
-
-    return () => {
-      timers.forEach((t) => window.clearTimeout(t));
-    };
-  }, [isLaunching, navigate]);
-
   const handleLaunch = () => {
-    if (isLaunching) return;
-    setStatusText('Initializing AI Face Recognition...');
-    setIsLaunching(true);
+    navigate('/login');
   };
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
-      {isLaunching && <FaceScanOverlay statusText={statusText} />}
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -129,8 +108,7 @@ const Landing = () => {
             <button
               type="button"
               onClick={handleLaunch}
-              disabled={isLaunching}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-indigo-600 rounded-xl font-semibold hover:bg-blue-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-indigo-600 rounded-xl font-semibold hover:bg-blue-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5"
             >
               Launch System
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

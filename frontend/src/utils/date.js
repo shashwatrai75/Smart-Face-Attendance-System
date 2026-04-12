@@ -35,6 +35,16 @@ export const getFirstOfMonth = () => {
   return `${y}-${m}-01`;
 };
 
+/** YYYY-MM-DD for today minus `days` (0 = today). */
+export const getDateDaysAgo = (days) => {
+  const d = new Date();
+  d.setDate(d.getDate() - Number(days));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const getCurrentTime = () => {
   return new Date().toTimeString().split(' ')[0];
 };

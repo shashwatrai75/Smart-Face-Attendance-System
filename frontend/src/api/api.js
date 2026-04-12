@@ -302,6 +302,7 @@ export const exportReport = async (sectionId, dateFrom, dateTo, format = 'xlsx')
   const response = await axios.get(`${API_URL}/reports/export`, {
     params,
     responseType: 'blob',
+    timeout: 60000,
     headers: {
       Authorization: token ? `Bearer ${token}` : '',
     },

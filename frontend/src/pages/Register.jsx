@@ -6,6 +6,30 @@ import { validateEmail, validatePassword } from '../utils/validators';
 import Toast from '../components/Toast';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import PropTypes from 'prop-types';
+
+const inputClass =
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/35 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500';
+
+const labelClass = 'block text-sm font-medium text-slate-700 dark:text-slate-300';
+
+function FormSection({ title, description, children }) {
+  return (
+    <section className="space-y-4 rounded-xl bg-white p-6 shadow-sm dark:border dark:border-slate-700/80 dark:bg-slate-900">
+      <div className="border-b border-slate-100 pb-3 dark:border-slate-700/80">
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h3>
+        {description ? <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p> : null}
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+FormSection.propTypes = {
+  title: PropTypes.string.isRequired,
+  description: PropTypes.string,
+  children: PropTypes.node,
+};
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -27,10 +51,10 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // Only Superadmin can assign Office Admin, Supervisor, or Superadmin roles
   const isSuperadmin =
     currentUser?.role === 'superadmin' ||
     (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('user') || '{}')?.role === 'superadmin');
@@ -65,11 +89,11 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen page-bg">
+    <div className="flex min-h-screen flex-col bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Navbar />
-      <div className="flex">
+      <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8">
           {toast && (
             <Toast
               message={toast.message}
@@ -77,164 +101,168 @@ const Register = () => {
               onClose={() => setToast(null)}
             />
           )}
-          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md w-full dark:border dark:border-gray-700">
-            <h2 className="text-2xl font-bold mb-6">Create New User</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Personal Information Section */}
-              <div className="border-b pb-4 mb-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-4">Personal Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <div className="mx-auto w-full max-w-4xl space-y-6">
+            <header>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Create New User</h1>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                Add a team member with profile, address, and account access. Required fields are marked with{' '}
+                <span className="text-red-500">*</span>.
+              </p>
+            </header>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <FormSection
+                title="Personal Information"
+                description="Basic identity details for the new account."
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Name <span className="text-red-500">*</span>
+                    <label className={labelClass}>
+                      Full name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`${inputClass} mt-1.5`}
+                      placeholder="e.g. Jane Smith"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={labelClass}>
                       Email <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`${inputClass} mt-1.5`}
+                      placeholder="name@organization.com"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
-                    </label>
+                    <label className={labelClass}>Phone number</label>
                     <input
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`${inputClass} mt-1.5`}
                       placeholder="+1 234 567 8900"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Date of Birth
-                    </label>
+                    <label className={labelClass}>Date of birth</label>
                     <input
                       type="date"
                       value={formData.dateOfBirth}
                       onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`${inputClass} mt-1.5`}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Gender
-                    </label>
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Gender</label>
                     <select
                       value={formData.gender}
                       onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`${inputClass} mt-1.5`}
                     >
-                      <option value="">Select Gender</option>
+                      <option value="">Select gender</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
                       <option value="other">Other</option>
                     </select>
                   </div>
                 </div>
-              </div>
+              </FormSection>
 
-              {/* Address Information Section */}
-              <div className="border-b pb-4 mb-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-4">Address Information</h3>
+              <FormSection title="Address Information" description="Optional mailing or contact address.">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Address
-                    </label>
+                    <label className={labelClass}>Street address</label>
                     <input
                       type="text"
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Street address"
+                      className={`${inputClass} mt-1.5`}
+                      placeholder="123 Main Street, Apt 4"
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        City
-                      </label>
+                      <label className={labelClass}>City</label>
                       <input
                         type="text"
                         value={formData.city}
                         onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className={`${inputClass} mt-1.5`}
+                        placeholder="City"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        State/Province
-                      </label>
+                      <label className={labelClass}>State / Province</label>
                       <input
                         type="text"
                         value={formData.state}
                         onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className={`${inputClass} mt-1.5`}
+                        placeholder="State or region"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Zip/Postal Code
-                      </label>
+                      <label className={labelClass}>ZIP / Postal code</label>
                       <input
                         type="text"
                         value={formData.zipCode}
                         onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className={`${inputClass} mt-1.5`}
+                        placeholder="12345"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Country
-                      </label>
+                      <label className={labelClass}>Country</label>
                       <input
                         type="text"
                         value={formData.country}
                         onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className={`${inputClass} mt-1.5`}
+                        placeholder="Country"
                       />
                     </div>
                   </div>
                 </div>
-              </div>
+              </FormSection>
 
-              {/* Account Information Section */}
-              <div className="border-b pb-4 mb-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-4">Account Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Photo Upload Section */}
+              <FormSection
+                title="Account Information"
+                description="Credentials, role, optional photo, and institution."
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Profile Photo (Optional)
-                    </label>
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
-                        {formData.image ? (
-                          <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-gray-400 text-xs">No Photo</span>
-                        )}
+                    <label className={labelClass}>Profile photo (optional)</label>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Square image works best. Maximum file size 2&nbsp;MB. JPG or PNG.
+                    </p>
+                    <div className="mt-3 flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 sm:flex-row sm:items-center dark:border-slate-600 dark:bg-slate-800/50">
+                      <div className="flex shrink-0 justify-center sm:justify-start">
+                        <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-white shadow-inner dark:border-slate-500 dark:bg-slate-800">
+                          {formData.image ? (
+                            <img src={formData.image} alt="Profile preview" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs font-medium text-slate-400">
+                              No photo
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1 space-y-3">
                         <input
+                          id="register-profile-photo"
                           type="file"
                           accept="image/*"
+                          className="sr-only"
                           onChange={(e) => {
                             const file = e.target.files[0];
                             if (file) {
@@ -249,42 +277,61 @@ const Register = () => {
                               reader.readAsDataURL(file);
                             }
                           }}
-                          className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Recommended: Square image, max 2MB</p>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <label
+                            htmlFor="register-profile-photo"
+                            className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 hover:shadow-md"
+                          >
+                            Choose image
+                          </label>
+                          {formData.image ? (
+                            <button
+                              type="button"
+                              onClick={() => setFormData({ ...formData, image: '' })}
+                              className="text-sm font-semibold text-red-600 transition hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Remove photo
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
-                      {formData.image && (
-                        <button
-                          type="button"
-                          onClick={() => setFormData({ ...formData, image: '' })}
-                          className="text-red-600 text-sm hover:underline"
-                        >
-                          Remove
-                        </button>
-                      )}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={labelClass}>
                       Password <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
+                    <div className="relative mt-1.5">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        className={`${inputClass} pr-[4.5rem]`}
+                        placeholder="At least 6 characters"
+                        required
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((s) => !s)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-slate-500 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                      >
+                        {showPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={labelClass}>
                       Role <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`${inputClass} mt-1.5`}
                     >
                       <option value="member">Member</option>
                       {isSuperadmin && (
@@ -297,29 +344,43 @@ const Register = () => {
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Institution Name (Optional)
-                    </label>
+                    <label className={labelClass}>Institution name (optional)</label>
                     <input
                       type="text"
                       value={formData.institutionName}
                       onChange={(e) => setFormData({ ...formData, institutionName: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className={`${inputClass} mt-1.5`}
+                      placeholder="School or organization name"
                     />
                   </div>
                 </div>
-              </div>
+              </FormSection>
 
-              {error && (
-                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-md">{error}</div>
-              )}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 transition-colors font-medium"
-              >
-                {loading ? 'Creating...' : 'Create User'}
-              </button>
+              {error ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-200"
+                >
+                  {error}
+                </div>
+              ) : null}
+
+              <div className="space-y-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:from-violet-700 hover:to-purple-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-md"
+                >
+                  {loading ? 'Creating…' : 'Create user'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/users')}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
           </div>
         </main>
@@ -329,4 +390,3 @@ const Register = () => {
 };
 
 export default Register;
-

@@ -50,23 +50,25 @@ const StatCard = ({ label, value, tone = 'primary', trend, icon, to }) => {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div className={['text-sm font-semibold', trendTone].join(' ')}>
-          {typeof trend?.value === 'number' ? (
-            <span>
-              {trend.value > 0 ? '+' : ''}
-              {trend.value}%
-              <span className="font-medium text-slate-400 dark:text-slate-400"> · </span>
-              <span className="font-medium text-slate-500 dark:text-slate-300/70">{trend.label || 'vs last period'}</span>
-            </span>
-          ) : (
-            <span className="font-medium text-slate-400 dark:text-slate-400">No trend data</span>
-          )}
+      {trend != null && (
+        <div className="mt-4 flex items-center justify-between">
+          <div className={['text-sm font-semibold', trendTone].join(' ')}>
+            {typeof trend?.value === 'number' ? (
+              <span>
+                {trend.value > 0 ? '+' : ''}
+                {trend.value}%
+                <span className="font-medium text-slate-400 dark:text-slate-400"> · </span>
+                <span className="font-medium text-slate-500 dark:text-slate-300/70">{trend.label || 'vs last period'}</span>
+              </span>
+            ) : (
+              <span className="font-medium text-slate-400 dark:text-slate-400">No trend data</span>
+            )}
+          </div>
+          <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-white/5">
+            <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-violet-500 to-purple-600 opacity-60 transition-all duration-300 group-hover:opacity-90" />
+          </div>
         </div>
-        <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-white/5">
-          <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-violet-500 to-purple-600 opacity-60 transition-all duration-300 group-hover:opacity-90" />
-        </div>
-      </div>
+      )}
     </>
   );
 
