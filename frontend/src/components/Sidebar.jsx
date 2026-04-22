@@ -78,6 +78,17 @@ const Sidebar = () => {
   const role = user?.role || 'member';
   const roleKey = role === 'superadmin' ? 'superadmin' : role === 'admin' ? 'admin' : role === 'hr' ? 'hr' : 'member';
 
+  const brandSubtitle =
+    roleKey === 'member'
+      ? 'Lecturer panel'
+      : roleKey === 'hr'
+        ? 'Supervisor Panel'
+        : roleKey === 'superadmin'
+          ? 'Superadmin Console'
+          : roleKey === 'admin'
+            ? 'Admin Console'
+            : 'Lecturer panel';
+
   const groups = [
     {
       title: 'MAIN',
@@ -98,22 +109,20 @@ const Sidebar = () => {
       title: 'ATTENDANCE',
       items: [
         { path: '/member/attendance', label: 'Live Attendance', iconKey: 'camera', roles: ['member', 'admin', 'superadmin'] },
-        { path: '/hr/attendance', label: 'Live Attendance', iconKey: 'camera', roles: ['hr', 'superadmin'] },
-        { path: '/admin/history', label: 'History', iconKey: 'history', roles: ['admin', 'superadmin'] },
-        { path: '/hr/history', label: 'History', iconKey: 'history', roles: ['hr', 'superadmin'] },
-        { path: '/member/history', label: 'Member History', iconKey: 'history', roles: ['member', 'admin', 'superadmin'] },
+        { path: '/hr/attendance', label: 'Live Attendance', iconKey: 'camera', roles: ['hr'] },
       ],
     },
     {
       title: 'REPORTS',
       items: [
         { path: '/admin/reports', label: 'Reports', iconKey: 'reports', roles: ['admin', 'superadmin'] },
+        { path: '/member/reports', label: 'Reports', iconKey: 'reports', roles: ['member'] },
         { path: '/member/reports', label: 'Member Reports', iconKey: 'reports', roles: ['member', 'admin', 'superadmin'] },
-        { path: '/hr/reports', label: 'Reports', iconKey: 'reports', roles: ['hr', 'superadmin'] },
+        { path: '/hr/reports', label: 'Reports', iconKey: 'reports', roles: ['hr'] },
       ],
     },
     {
-      title: 'ADMIN',
+      title: 'SUPERADMIN CONSOLE',
       items: [
         { path: '/superadmin/system-settings', label: 'System Settings', iconKey: 'settings', roles: ['superadmin'] },
         { path: '/superadmin/admin-management', label: 'Office Admin Management', iconKey: 'users', roles: ['superadmin'] },
@@ -125,7 +134,6 @@ const Sidebar = () => {
       title: 'SUPERVISOR',
       items: [
         { path: '/hr/dashboard', label: 'Supervisor Dashboard', iconKey: 'dashboard', roles: ['hr', 'superadmin'] },
-        { path: '/hr/enroll-employee', label: 'Supervisor Enroll Employee', iconKey: 'users', roles: ['hr', 'superadmin'] },
         { path: '/hr/face-scan', label: 'Supervisor Face Scan', iconKey: 'camera', roles: ['hr', 'superadmin'] },
       ],
     },
@@ -142,7 +150,7 @@ const Sidebar = () => {
           </div>
           <div>
             <div className="text-sm font-semibold">SmartFace</div>
-            <div className="text-xs text-gray-400">Console</div>
+            <div className="text-xs text-gray-400">{brandSubtitle}</div>
           </div>
         </div>
       </div>
@@ -154,7 +162,7 @@ const Sidebar = () => {
             <div className="space-y-1 px-2">
               {g.items.map((it) => (
                 <Link
-                  key={it.path}
+                  key={`${it.path}-${it.label}`}
                   to={it.path}
                   className={[
                     itemBase,

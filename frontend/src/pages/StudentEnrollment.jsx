@@ -4,6 +4,43 @@ import FaceCamera from '../components/FaceCamera';
 import Toast from '../components/Toast';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import PageHeader from '../components/userManagement/PageHeader';
+import { isValidGmailAddress } from '../utils/studentGmail';
+import { guardianPhoneDigitsOnly, guardianPhoneTenDigitError } from '../utils/guardianPhone';
+
+const VALIDATION_FIELD_ORDER = [
+  'selectedSectionId',
+  'fullName',
+  'rollNo',
+  'email',
+  'dateOfBirth',
+  'gender',
+  'guardianName',
+  'guardianPhone',
+  'faceImages',
+];
+
+const inputBaseClass =
+  'w-full rounded-lg border bg-white px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 dark:bg-slate-950/30 dark:text-white';
+
+/** Map API error text to form field keys so the same red highlight appears as for client validation. */
+function mapEnrollApiErrorToFields(message) {
+  const text = String(message || '');
+  const lower = text.toLowerCase();
+  const out = {};
+  // Do not match "Missing: … roll number …" — only real duplicate / conflict messages.
+  if (
+    lower.includes('already exists') &&
+    (lower.includes('roll number') || lower.includes('rollnumber') || lower.includes('roll no'))
+  ) {
+    out.rollNo = text;
+  } else if (lower.includes('gmail') || lower.includes('@gmail.com')) out.email = text;
+  else if (lower.includes('guardian phone') || lower.includes('phone already')) out.guardianPhone = text;
+  else if (lower.includes('phone') && (lower.includes('digit') || lower.includes('required'))) out.guardianPhone = text;
+  else if (lower.includes('section not found') || lower.includes('container section') || lower.includes('class-type sections')) {
+    out.selectedSectionId = text;
+  }
+  return out;
+}
 
 const StudentEnrollment = () => {
   const [sections, setSections] = useState([]);
@@ -11,6 +48,7 @@ const StudentEnrollment = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     rollNo: '',
+    email: '',
     dateOfBirth: '',
     gender: '',
     guardianName: '',
@@ -21,7 +59,11 @@ const StudentEnrollment = () => {
   const [toast, setToast] = useState(null);
   const [allSections, setAllSections] = useState([]);
   const [errors, setErrors] = useState({});
-  const [isFaceDetected, setIsFaceDetected] = useState(false);
+
+  const fieldRing = (key) =>
+    errors[key]
+      ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/40 dark:border-rose-500'
+      : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/40 dark:border-white/10';
 
   useEffect(() => {
     fetchSections();
@@ -57,10 +99,18 @@ const StudentEnrollment = () => {
     if (!selectedSectionId) next.selectedSectionId = 'Section is required.';
     if (!formData.fullName?.trim()) next.fullName = 'Full name is required.';
     if (!formData.rollNo?.trim()) next.rollNo = 'Roll number is required.';
+    const emailTrim = formData.email?.trim() || '';
+    if (!emailTrim) {
+      next.email = 'Student Gmail is required.';
+    } else if (!isValidGmailAddress(emailTrim)) {
+      next.email = 'Enter a valid Gmail address (must end with @gmail.com).';
+    }
     if (!formData.dateOfBirth?.trim()) next.dateOfBirth = 'Date of birth is required.';
     if (!formData.gender?.trim()) next.gender = 'Gender is required.';
     if (!formData.guardianName?.trim()) next.guardianName = 'Guardian name is required.';
-    if (!formData.guardianPhone?.trim()) next.guardianPhone = 'Guardian phone is required.';
+    const guardianPhoneDigits = guardianPhoneDigitsOnly(formData.guardianPhone);
+    const guardianPhoneErr = guardianPhoneTenDigitError(guardianPhoneDigits);
+    if (guardianPhoneErr) next.guardianPhone = guardianPhoneErr;
     if (!faceImages || faceImages.length < 3) next.faceImages = 'Capture at least 3 face samples.';
     return next;
   };
@@ -70,7 +120,17 @@ const StudentEnrollment = () => {
     const nextErrors = validate();
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
-      setToast({ message: 'Please fix the highlighted fields.', type: 'error' });
+      const parts = VALIDATION_FIELD_ORDER.filter((k) => nextErrors[k]).map((k) => nextErrors[k]);
+      const count = parts.length;
+      const summary =
+        count > 1
+          ? `Please fix ${count} issues:\n${parts.map((p, i) => `${i + 1}. ${p}`).join('\n')}`
+          : parts[0] || 'Please fix the highlighted fields.';
+      setToast({
+        message: summary,
+        type: 'error',
+        duration: Math.min(3500 + count * 1200, 16000),
+      });
       return;
     }
 
@@ -78,6 +138,7 @@ const StudentEnrollment = () => {
     try {
       const res = await enrollStudent({
         ...formData,
+        guardianPhone: guardianPhoneDigitsOnly(formData.guardianPhone),
         sectionId: selectedSectionId,
       });
       const student = res.student || {};
@@ -100,11 +161,24 @@ const StudentEnrollment = () => {
 
       setToast({ message: 'Student enrolled successfully', type: 'success' });
       setErrors({});
-      setFormData({ fullName: '', rollNo: '', dateOfBirth: '', gender: '', guardianName: '', guardianPhone: '' });
+      setFormData({
+        fullName: '',
+        rollNo: '',
+        email: '',
+        dateOfBirth: '',
+        gender: '',
+        guardianName: '',
+        guardianPhone: '',
+      });
       setFaceImages([]);
       setSelectedSectionId('');
     } catch (err) {
-      setToast({ message: err.error || 'Failed to enroll student', type: 'error' });
+      const msg = err.error || err.message || 'Failed to enroll student';
+      const fieldErrors = mapEnrollApiErrorToFields(msg);
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors);
+      }
+      setToast({ message: msg, type: 'error', duration: 6000 });
     } finally {
       setLoading(false);
     }
@@ -112,7 +186,14 @@ const StudentEnrollment = () => {
 
   return (
     <DashboardLayout pageTitle="Enroll Student">
-      {toast ? <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} /> : null}
+      {toast ? (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          duration={typeof toast.duration === 'number' ? toast.duration : 3000}
+          onClose={() => setToast(null)}
+        />
+      ) : null}
 
       <div className="space-y-6">
         <PageHeader
@@ -123,7 +204,7 @@ const StudentEnrollment = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           {/* LEFT: Form */}
           <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900/40">
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form noValidate onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900 dark:text-white">Student Info</h2>
@@ -148,7 +229,7 @@ const StudentEnrollment = () => {
                           return next;
                         });
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-white/10 dark:bg-slate-950/30 dark:text-white dark:placeholder:text-slate-500"
+                      className={`${inputBaseClass} placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldRing('selectedSectionId')}`}
                     >
                       <option value="">Select Section</option>
                       {sections.map((sec) => {
@@ -183,7 +264,7 @@ const StudentEnrollment = () => {
                           return next;
                         });
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-white/10 dark:bg-slate-950/30 dark:text-white dark:placeholder:text-slate-500"
+                      className={`${inputBaseClass} placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldRing('fullName')}`}
                       placeholder="e.g. Riya Verma"
                     />
                     {errors.fullName ? <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">{errors.fullName}</p> : null}
@@ -205,10 +286,37 @@ const StudentEnrollment = () => {
                           return next;
                         });
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-white/10 dark:bg-slate-950/30 dark:text-white dark:placeholder:text-slate-500"
+                      className={`${inputBaseClass} placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldRing('rollNo')}`}
                       placeholder="e.g. 24"
                     />
                     {errors.rollNo ? <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">{errors.rollNo}</p> : null}
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                      Student Gmail <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="email"
+                      autoComplete="email"
+                      value={formData.email}
+                      onChange={(e) => {
+                        setFormData({ ...formData, email: e.target.value });
+                        setErrors((prev) => {
+                          if (!prev.email) return prev;
+                          const next = { ...prev };
+                          delete next.email;
+                          return next;
+                        });
+                      }}
+                      className={`${inputBaseClass} placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldRing('email')}`}
+                      placeholder="name@gmail.com"
+                    />
+                    {errors.email ? <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">{errors.email}</p> : null}
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Must be a valid @gmail.com address (school Google accounts).
+                    </p>
                   </div>
 
                   <div>
@@ -227,7 +335,7 @@ const StudentEnrollment = () => {
                           return next;
                         });
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-white/10 dark:bg-slate-950/30 dark:text-white"
+                      className={`${inputBaseClass} ${fieldRing('dateOfBirth')}`}
                     />
                     {errors.dateOfBirth ? (
                       <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">{errors.dateOfBirth}</p>
@@ -249,7 +357,7 @@ const StudentEnrollment = () => {
                           return next;
                         });
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-white/10 dark:bg-slate-950/30 dark:text-white"
+                      className={`${inputBaseClass} ${fieldRing('gender')}`}
                     >
                       <option value="">Select Gender</option>
                       <option value="male">Male</option>
@@ -288,7 +396,7 @@ const StudentEnrollment = () => {
                           return next;
                         });
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-white/10 dark:bg-slate-950/30 dark:text-white dark:placeholder:text-slate-500"
+                      className={`${inputBaseClass} placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldRing('guardianName')}`}
                       placeholder="Full name of parent/guardian"
                     />
                     {errors.guardianName ? (
@@ -302,9 +410,13 @@ const StudentEnrollment = () => {
                     </label>
                     <input
                       type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={10}
                       value={formData.guardianPhone}
                       onChange={(e) => {
-                        setFormData({ ...formData, guardianPhone: e.target.value });
+                        const digits = guardianPhoneDigitsOnly(e.target.value).slice(0, 10);
+                        setFormData({ ...formData, guardianPhone: digits });
                         setErrors((prev) => {
                           if (!prev.guardianPhone) return prev;
                           const next = { ...prev };
@@ -312,12 +424,15 @@ const StudentEnrollment = () => {
                           return next;
                         });
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-white/10 dark:bg-slate-950/30 dark:text-white dark:placeholder:text-slate-500"
-                      placeholder="Contact number"
+                      className={`${inputBaseClass} placeholder:text-slate-400 dark:placeholder:text-slate-500 ${fieldRing('guardianPhone')}`}
+                      placeholder="10-digit number (e.g. 9826728973)"
                     />
                     {errors.guardianPhone ? (
                       <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">{errors.guardianPhone}</p>
                     ) : null}
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Enter exactly 10 digits. Letters and symbols are removed as you type.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -325,7 +440,7 @@ const StudentEnrollment = () => {
               <div className="pt-1">
                 <button
                   type="submit"
-                  disabled={loading || !faceImages || faceImages.length < 3}
+                  disabled={loading}
                   className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
                   {loading ? 'Enrolling…' : 'Enroll Student'}
@@ -338,24 +453,19 @@ const StudentEnrollment = () => {
           </div>
 
           {/* RIGHT: Face capture */}
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900/40">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900 dark:text-white">Face Capture</h2>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
-                  Align face inside the frame. Capture 3–5 samples.
-                </p>
-              </div>
-              <div
-                className={[
-                  'rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset',
-                  isFaceDetected
-                    ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-200 dark:ring-emerald-300/20'
-                    : 'bg-slate-500/10 text-slate-700 ring-slate-600/20 dark:bg-white/5 dark:text-slate-200 dark:ring-white/10',
-                ].join(' ')}
-              >
-                {isFaceDetected ? 'Face detected' : 'No face'}
-              </div>
+          <div
+            className={`rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md dark:bg-slate-900/40 ${
+              errors.faceImages
+                ? 'border-rose-500 ring-2 ring-rose-500/30 dark:border-rose-500'
+                : 'border-slate-200/70 dark:border-white/10'
+            }`}
+          >
+            <div>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white">Face Capture</h2>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
+                Align face inside the frame. Capture 3–5 samples. Status badges under the camera include live scan when
+                your browser supports it.
+              </p>
             </div>
 
             <div className="mt-4">
@@ -363,8 +473,7 @@ const StudentEnrollment = () => {
                 onCapture={handleCapture}
                 onError={(error) => setToast({ message: error, type: 'error' })}
                 samplesRequired={5}
-                requireFaceDetected={true}
-                onDetection={({ detected }) => setIsFaceDetected(!!detected)}
+                requireFaceDetected={false}
               />
               {errors.faceImages ? (
                 <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">{errors.faceImages}</p>

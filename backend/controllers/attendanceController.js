@@ -196,7 +196,7 @@ const startSession = async (req, res, next) => {
       }
     }
 
-    const MAX_SESSIONS_PER_DAY = 5;
+    const MAX_SESSIONS_PER_DAY = 20;
     const sessionCount = resolvedClassSessionId
       ? await AttendanceSession.countDocuments({ classSessionId: resolvedClassSessionId, date: today })
       : await AttendanceSession.countDocuments({ sectionId: resolvedSectionId, classSessionId: null, date: today });
@@ -205,6 +205,31 @@ const startSession = async (req, res, next) => {
       return res.status(400).json({
         error: `Maximum ${MAX_SESSIONS_PER_DAY} attendance sessions per day reached for this section.`,
       });
+    }
+
+    if (!resolvedClassSessionId) {
+      const lastCompleted = await AttendanceSession.findOne({
+        sectionId: resolvedSectionId,
+        classSessionId: null,
+        date: today,
+        status: 'completed',
+        endTime: { $ne: null },
+      })
+        .sort({ startTime: -1 })
+        .select('totalStudents absentCount')
+        .lean();
+
+      if (
+        lastCompleted &&
+        Number(lastCompleted.totalStudents || 0) > 0 &&
+        Number(lastCompleted.absentCount || 0) === 0
+      ) {
+        return res.status(400).json({
+          error:
+            'Attendance is complete for today (all students marked present or late). Start a new session tomorrow.',
+          code: 'ATTENDANCE_DAY_COMPLETE',
+        });
+      }
     }
 
     const sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -356,6 +381,18 @@ const markAttendance = async (req, res, next) => {
         const filter = resolvedClassSessionId
           ? { studentId, classSessionId: resolvedClassSessionId, date: today }
           : { studentId, sectionId: resolvedSectionId, date: today, sessionId };
+
+        const existingForSession = await Attendance.findOne(filter).lean();
+        if (existingForSession) {
+          results.push({
+            studentId,
+            status: 'already_marked',
+            attendanceId: existingForSession._id,
+            finalStatus: existingForSession.status,
+            message: 'Attendance already happened for this session.',
+          });
+          continue;
+        }
 
         const update = {
           studentId,

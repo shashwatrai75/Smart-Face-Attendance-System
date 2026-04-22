@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { getSummary, getClassWiseData, getTrendData, exportReport, getSections } from '../api/api';
-import { formatDate, getToday, getFirstOfMonth, getDateDaysAgo } from '../utils/date';
+import { formatDate, getToday, getFirstOfMonth, getMondayOfThisWeek } from '../utils/date';
 import Toast from '../components/Toast';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import StatCard from '../components/dashboard/StatCard';
@@ -106,19 +106,15 @@ const Reports = () => {
   };
 
   const handleExport = async (format) => {
-    if (!filters.sectionId) {
-      setToast({ message: 'Choose a section to export (exports are per section)', type: 'error' });
-      return;
-    }
-
     setExporting(true);
     try {
-      await exportReport(
-        filters.sectionId,
-        filters.startDate || undefined,
-        filters.endDate || undefined,
-        format
-      );
+      await exportReport({
+        sectionId: filters.sectionId || undefined,
+        classId: filters.sectionId ? undefined : filters.classId || undefined,
+        dateFrom: filters.startDate || undefined,
+        dateTo: filters.endDate || undefined,
+        format,
+      });
       setToast({
         message: `Report exported successfully as ${format.toUpperCase()}`,
         type: 'success',
@@ -194,8 +190,10 @@ const Reports = () => {
               Attendance reports
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300/70">
-              For <strong>today</strong>, tap <strong>Today</strong> below (or set From and To to the same day), choose your
-              class/section if needed, then <strong>Load report</strong>.
+              Set dates (or use <strong>Today</strong> / presets), optionally narrow by <strong>class</strong> or{' '}
+              <strong>section</strong>, then <strong>Load report</strong>. <strong>Export XLSX / CSV</strong> downloads the
+              same scope as the loaded report—including <strong>All classes</strong> and <strong>All sections</strong>{' '}
+              (admins: whole institution in range; teachers: only sections you are allowed to see).
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -210,7 +208,7 @@ const Reports = () => {
             <button
               type="button"
               onClick={() => handleExport('xlsx')}
-              disabled={exporting || !filters.sectionId}
+              disabled={exporting}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-100 dark:hover:bg-white/5"
             >
               {exporting ? 'Exporting…' : 'Export XLSX'}
@@ -218,7 +216,7 @@ const Reports = () => {
             <button
               type="button"
               onClick={() => handleExport('csv')}
-              disabled={exporting || !filters.sectionId}
+              disabled={exporting}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-100 dark:hover:bg-white/5"
             >
               {exporting ? 'Exporting…' : 'Export CSV'}
@@ -299,24 +297,24 @@ const Reports = () => {
               </button>
               <button
                 type="button"
-                onClick={() => applyDatePreset(getFirstOfMonth(), getToday())}
+                onClick={() => applyDatePreset(getMondayOfThisWeek(), getToday())}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
               >
-                This month
+                This week
               </button>
               <button
                 type="button"
-                onClick={() => applyDatePreset(getDateDaysAgo(29), getToday())}
+                onClick={() => applyDatePreset(getFirstOfMonth(), getToday())}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
               >
-                Last 30 days
+                Months
               </button>
               <button
                 type="button"
                 onClick={() => applyDatePreset('', '')}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
               >
-                All dates
+                All data
               </button>
             </div>
           </div>
@@ -331,11 +329,11 @@ const Reports = () => {
               <p>
                 No students or attendance in your assigned sections for this range. Tap <strong>Today</strong> if you
                 marked attendance today, pick the right <strong>class/section</strong>, then <strong>Load report</strong>.
-                If it stays empty, ask an admin to assign you to class sessions, or try <strong>All dates</strong>.
+                If it stays empty, ask an admin to assign you to class sessions, or try <strong>All data</strong>.
               </p>
             ) : (
               <p>
-                No data for these filters. Try <strong>All dates</strong>, confirm students and sections exist, and
+                No data for these filters. Try <strong>All data</strong>, confirm students and sections exist, and
                 ensure attendance was recorded in that period.
               </p>
             )}
@@ -348,7 +346,7 @@ const Reports = () => {
             role="status"
           >
             <p>
-              There are students in scope, but no attendance marks in this date range. Use <strong>All dates</strong>{' '}
+              There are students in scope, but no attendance marks in this date range. Use <strong>All data</strong>{' '}
               or adjust From / To, then <strong>Load report</strong>.
             </p>
           </div>

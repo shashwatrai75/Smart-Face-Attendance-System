@@ -1,5 +1,4 @@
 import PropTypes from 'prop-types';
-import faceImage from '../assets/face-mesh.png';
 
 const FaceScanOverlay = ({ statusText = 'Initializing Face Recognition...' }) => {
   return (
@@ -14,31 +13,31 @@ const FaceScanOverlay = ({ statusText = 'Initializing Face Recognition...' }) =>
       <div className="absolute inset-0 face-bg-noise opacity-60" />
       <div className="absolute inset-0 face-vignette" />
 
-      <div className="relative w-full max-w-lg px-6">
+      <div className="relative w-full max-w-2xl px-6">
         <div className="mx-auto flex flex-col items-center">
           <div className="relative">
             {/* Ambient glow */}
-            <div className="absolute -inset-16 rounded-[3.5rem] bg-cyan-400/10 blur-3xl" />
-            <div className="absolute -inset-24 rounded-[4rem] bg-fuchsia-500/10 blur-[70px]" />
+            <div className="absolute -inset-20 rounded-[3.5rem] bg-cyan-400/10 blur-3xl" />
+            <div className="absolute -inset-28 rounded-[4rem] bg-fuchsia-500/10 blur-[70px]" />
 
-            {/* Face mesh frame */}
-            <div className="relative h-80 w-80 overflow-hidden rounded-[2.25rem] border border-cyan-200/25 bg-slate-950/35 shadow-[0_0_0_1px_rgba(34,211,238,0.14),0_0_55px_rgba(99,102,241,0.18)] face-global-pulse">
+            {/* Face mesh frame — larger for clearer alignment cue */}
+            <div className="relative aspect-[3/4] w-[min(88vw,22rem)] sm:w-[min(88vw,26rem)] md:w-[min(88vw,30rem)] overflow-hidden rounded-[2.25rem] border border-cyan-200/25 bg-slate-950/35 shadow-[0_0_0_1px_rgba(34,211,238,0.14),0_0_55px_rgba(99,102,241,0.18)] face-global-pulse">
               {/* Glowing grid overlay */}
               <div className="absolute inset-0 face-scan-grid opacity-55" />
 
-              {/* Real face (photo) */}
+              {/* Wireframe face scan art */}
               <div className="absolute inset-0 face-photo-pulse">
                 <img
-                  src={faceImage}
+                  src={`${import.meta.env.BASE_URL}face-scan-wireframe.png`}
                   alt=""
-                  className="h-full w-full object-contain p-3 scale-[1.03] opacity-[0.95] saturate-[1.05] contrast-[1.05] face-photo-mask"
-                  draggable="false"
+                  className="h-full w-full object-contain p-4 scale-[1.02] opacity-[0.98] saturate-[1.05] contrast-[1.08] face-photo-mask"
+                  draggable={false}
                 />
               </div>
 
-              {/* AI overlay tint + mesh */}
-              <div className="absolute inset-0 face-ai-overlay" />
-              <div className="absolute inset-0 face-mesh-overlay" />
+              {/* AI overlay tint + mesh (subtle so wireframe stays visible) */}
+              <div className="absolute inset-0 face-ai-overlay opacity-60" />
+              <div className="absolute inset-0 face-mesh-overlay opacity-40" />
 
               {/* Landmarks */}
               <div className="pointer-events-none absolute inset-0">
@@ -87,7 +86,7 @@ const FaceScanOverlay = ({ statusText = 'Initializing Face Recognition...' }) =>
               {statusText}
             </p>
             <p className="mt-2 text-xs text-slate-200/55">
-              Keep your face centered in the frame
+              Align your face inside the frame; when the camera opens, tap Capture.
             </p>
           </div>
         </div>

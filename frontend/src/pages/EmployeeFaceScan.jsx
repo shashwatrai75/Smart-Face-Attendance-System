@@ -388,7 +388,7 @@ const EmployeeFaceScan = () => {
                     onCapture={handleCapture}
                     onError={(err) => setToast({ message: err, type: 'error' })}
                     samplesRequired={5}
-                    requireFaceDetected={true}
+                    requireFaceDetected={false}
                     onDetection={({ detected, box }) => {
                       setIsFaceDetected(!!detected);
                       setDetectionBox(box || null);
@@ -415,7 +415,7 @@ const EmployeeFaceScan = () => {
                   </div>
                 ) : (
                   <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300/70">
-                    Align face and click <span className="font-semibold">Capture</span>. Capture is disabled until a face is detected.
+                    Align your face and click <span className="font-semibold">Capture</span> for each sample. If “Face detected” never appears, your camera feed may not support live scan (common with virtual cameras) — you can still capture.
                   </div>
                 )}
 

@@ -35,6 +35,18 @@ export const getFirstOfMonth = () => {
   return `${y}-${m}-01`;
 };
 
+/** YYYY-MM-DD for Monday of the current calendar week (ISO week: Monday–Sunday). */
+export const getMondayOfThisWeek = () => {
+  const d = new Date();
+  const dow = d.getDay();
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  d.setDate(d.getDate() + mondayOffset);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 /** YYYY-MM-DD for today minus `days` (0 = today). */
 export const getDateDaysAgo = (days) => {
   const d = new Date();

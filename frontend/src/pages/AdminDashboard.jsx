@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getStats, getUsers, getSections } from '../api/api';
+import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import DashboardCards from '../components/dashboard/admin/DashboardCards';
@@ -23,6 +24,14 @@ const defaultStats = {
 };
 
 const AdminDashboard = () => {
+  const { user } = useAuth();
+  const dashboardTitle =
+    user?.role === 'superadmin' ? 'Superadmin Dashboard' : 'Office Admin Dashboard';
+  const dashboardSubtitle =
+    user?.role === 'superadmin'
+      ? 'Institution-wide health, attendance signals, and superadmin shortcuts—aligned with platform control.'
+      : 'System health, attendance signals, and shortcuts—organized for daily operations.';
+
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [sections, setSections] = useState([]);
@@ -72,7 +81,7 @@ const AdminDashboard = () => {
   }, []);
 
   return (
-    <DashboardLayout pageTitle="Office Admin Dashboard">
+    <DashboardLayout pageTitle={dashboardTitle}>
       {toast && (
         <Toast
           message={toast.message}
@@ -85,10 +94,10 @@ const AdminDashboard = () => {
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-              Office Admin Dashboard
+              {dashboardTitle}
             </h1>
             <p className="mt-2 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-slate-300">
-              System health, attendance signals, and shortcuts—organized for daily operations.
+              {dashboardSubtitle}
             </p>
           </div>
           <Link

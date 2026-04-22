@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const attendanceSessionSchema = new mongoose.Schema(
   {
+    // Business roll-call id (string). Distinct from MongoDB _id and from sectionId.
     sessionId: {
       type: String,
       required: [true, 'Session ID is required'],

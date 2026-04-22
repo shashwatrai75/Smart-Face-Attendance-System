@@ -19,9 +19,9 @@ const Toast = ({ message, type = 'info', onClose, duration = 3000 }) => {
 
   return (
     <div
-      className={`fixed top-4 right-4 ${bgColors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2`}
+      className={`fixed top-4 right-4 max-w-md ${bgColors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-start gap-2`}
     >
-      <span>{message}</span>
+      <span className="min-w-0 flex-1 whitespace-pre-line text-sm leading-snug">{message}</span>
       <button
         onClick={onClose}
         className="ml-2 text-white hover:text-gray-200"

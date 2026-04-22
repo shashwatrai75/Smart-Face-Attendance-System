@@ -16,9 +16,14 @@ const SectionCard = ({ section, meta, statsLoading, onStartSession, onViewAttend
   const lastSession = formatLastSession(m.lastSessionAt);
 
   const isActive = !!m.isActive;
+  const lockedComplete = !isActive && !!m.liveAttendanceClosed;
   const badge = isActive ? (
     <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-400/30">
       Active
+    </span>
+  ) : lockedComplete ? (
+    <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-900 ring-1 ring-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-400/30">
+      Complete
     </span>
   ) : (
     <span className="inline-flex items-center rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-400/20 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
@@ -53,17 +58,17 @@ const SectionCard = ({ section, meta, statsLoading, onStartSession, onViewAttend
         <button
           type="button"
           onClick={() => onStartSession(section)}
-          disabled={isActive}
+          disabled={isActive || lockedComplete}
           className="w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-400 dark:disabled:bg-slate-600"
         >
-          {isActive ? 'Session active' : 'Start session'}
+          {isActive ? 'Session active' : lockedComplete ? 'Attendance complete' : 'Start session'}
         </button>
         <button
           type="button"
           onClick={() => onViewAttendance(section, m)}
           className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:bg-slate-950/40 dark:text-white dark:hover:bg-white/10"
         >
-          View attendance
+          {lockedComplete ? 'View reports' : 'View attendance'}
         </button>
       </div>
     </div>

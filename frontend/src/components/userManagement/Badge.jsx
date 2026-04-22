@@ -40,9 +40,11 @@ export const RoleBadge = ({ role }) => {
       ? 'Office Admin'
       : key === 'hr'
         ? 'Supervisor'
-        : key
-          ? key.charAt(0).toUpperCase() + key.slice(1)
-          : '—';
+        : key === 'member'
+          ? 'Lecturer'
+          : key
+            ? key.charAt(0).toUpperCase() + key.slice(1)
+            : '—';
 
   return (
     <span className={cx('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1', cls)}>

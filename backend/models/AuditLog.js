@@ -34,6 +34,8 @@ const auditLogSchema = new mongoose.Schema(
         'DELETE_SECTION',
         'DISABLE_ADMIN',
         'ENABLE_ADMIN',
+        'CHANGE_PASSWORD',
+        'PASSWORD_RESET',
       ],
     },
     metadata: {

@@ -16,8 +16,12 @@ const FaceCamera = ({
   const done = samples.length >= samplesRequired;
   const [faceBox, setFaceBox] = useState(null); // { x, y, w, h } in percentages
   const [isFaceDetected, setIsFaceDetected] = useState(false);
+  /** True only when Chromium FaceDetector constructed — false for Firefox/Safari or ctor failure */
+  const [faceDetectorReady, setFaceDetectorReady] = useState(false);
   const detectLoopRef = useRef(null);
   const detectorRef = useRef(null);
+
+  const mustDetectFaceToCapture = requireFaceDetected && faceDetectorReady;
 
   const progressLabel = useMemo(() => {
     if (done) return 'Complete';
@@ -71,7 +75,7 @@ const FaceCamera = ({
               }
               setVideoOrientation(orient);
               setIsStreaming(true);
-              setStatus('Camera ready. Position your face in the frame with good lighting.');
+              setStatus('Camera ready. Align your face inside the frame, then click Capture.');
               resolve();
             };
           }
@@ -102,21 +106,34 @@ const FaceCamera = ({
     }
   };
 
-  // Lightweight realtime detection using Shape Detection API (Chrome)
+  // Lightweight realtime detection using Shape Detection API (Chrome only).
+  // Virtual cameras (e.g. iVCam) often return no faces — do not require detection unless API works.
   useEffect(() => {
     if (!isStreaming) return;
     const video = videoRef.current;
     if (!video) return;
 
-    // FaceDetector is available on Chromium-based browsers. If not available, we still allow capture.
-    const FaceDetectorCtor = window.FaceDetector;
-    if (!FaceDetectorCtor) return;
+    setFaceDetectorReady(false);
+    setIsFaceDetected(false);
+    setFaceBox(null);
 
+    const FaceDetectorCtor = typeof window !== 'undefined' ? window.FaceDetector : undefined;
+    if (!FaceDetectorCtor) {
+      onDetection?.({ detected: false, box: null, scanAvailable: false });
+      return () => {};
+    }
+
+    let detector;
     try {
-      detectorRef.current = new FaceDetectorCtor({ fastMode: true, maxDetectedFaces: 1 });
+      // fastMode: false tends to detect better on some laptop / virtual feeds
+      detector = new FaceDetectorCtor({ fastMode: false, maxDetectedFaces: 1 });
+      detectorRef.current = detector;
+      setFaceDetectorReady(true);
+      onDetection?.({ detected: false, box: null, scanAvailable: true });
     } catch {
       detectorRef.current = null;
-      return;
+      onDetection?.({ detected: false, box: null, scanAvailable: false });
+      return () => {};
     }
 
     let alive = true;
@@ -125,12 +142,12 @@ const FaceCamera = ({
       if (!alive) return;
       detectLoopRef.current = window.requestAnimationFrame(tick);
 
-      // throttle to ~6fps
-      if (t - lastRunAt < 160) return;
+      if (t - lastRunAt < 120) return;
       lastRunAt = t;
 
       const det = detectorRef.current;
       if (!det || !video.videoWidth || !video.videoHeight) return;
+      if (video.readyState < 2) return;
 
       try {
         const faces = await det.detect(video);
@@ -138,7 +155,7 @@ const FaceCamera = ({
         if (!face?.boundingBox) {
           setIsFaceDetected(false);
           setFaceBox(null);
-          onDetection?.({ detected: false, box: null });
+          onDetection?.({ detected: false, box: null, scanAvailable: true });
           return;
         }
 
@@ -151,22 +168,21 @@ const FaceCamera = ({
         const w = Math.max(0, Math.min(100, (bb.width / vw) * 100));
         const h = Math.max(0, Math.min(100, (bb.height / vh) * 100));
 
-        // Mirror compensation: we draw mirrored capture, and the preview feels mirrored;
-        // boundingBox is in the unmirrored coordinate space, so flip horizontally.
         const xMirrored = Math.max(0, Math.min(100, 100 - x - w));
 
         const box = { x: xMirrored, y, w, h };
         setIsFaceDetected(true);
         setFaceBox(box);
-        onDetection?.({ detected: true, box });
+        onDetection?.({ detected: true, box, scanAvailable: true });
       } catch {
-        // detection errors should not block camera usage
+        // ignore transient detection errors
       }
     };
 
     detectLoopRef.current = window.requestAnimationFrame(tick);
     return () => {
       alive = false;
+      setFaceDetectorReady(false);
       if (detectLoopRef.current) {
         window.cancelAnimationFrame(detectLoopRef.current);
         detectLoopRef.current = null;
@@ -176,14 +192,14 @@ const FaceCamera = ({
 
   const retake = () => {
     setSamples([]);
-    setStatus(isStreaming ? 'Camera ready. Position your face in the frame with good lighting.' : 'Initializing...');
+    setStatus(isStreaming ? 'Camera ready. Align your face inside the frame, then click Capture.' : 'Initializing...');
     onCapture?.([]);
   };
 
   const captureSample = async () => {
     if (!videoRef.current || !isStreaming) return;
-    if (requireFaceDetected && !isFaceDetected) {
-      setStatus('No face detected. Align your face within the frame and try again.');
+    if (mustDetectFaceToCapture && !isFaceDetected) {
+      setStatus('No face detected yet. Center your face, wait for “Face detected”, then click Capture.');
       return;
     }
 
@@ -236,7 +252,7 @@ const FaceCamera = ({
             ? 'border-emerald-400/50 shadow-[0_0_0_1px_rgba(52,211,153,0.18),0_0_48px_rgba(16,185,129,0.14)]'
             : 'border-slate-200 dark:border-white/10',
         ].join(' ')}
-        style={{ aspectRatio: '16/9' }}
+        style={{ aspectRatio: '4/3' }}
       >
         <video
           ref={videoRef}
@@ -252,17 +268,18 @@ const FaceCamera = ({
             transformOrigin: 'center center',
           }}
         />
-        {/* Biometric overlay */}
+        {/* Biometric overlay — large portrait guide so the face fits comfortably */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-black/0 to-black/15" />
-          {/* Center face frame */}
-          <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 border-cyan-300/85 shadow-[0_0_0_1px_rgba(34,211,238,0.16),0_0_40px_rgba(0,255,255,0.18)]" />
-          {/* Glow layer */}
-          <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-xl shadow-[0_0_40px_rgba(0,255,255,0.28)]" />
-          {/* Full width scan line */}
-          <div className="animate-scan absolute left-0 w-full h-1 bg-cyan-300/80 shadow-[0_0_18px_rgba(34,211,238,0.45)]" />
-          <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/25 face-radar" />
-          <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/25 face-radar-delayed" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/0 to-black/20" />
+          <div className="absolute inset-0 flex items-center justify-center px-3 py-3 sm:px-5 sm:py-5">
+            <div className="relative aspect-[3/4] w-[min(94vw,22rem)] max-h-[88%] sm:w-[min(94vw,26rem)] sm:max-h-[90%] md:w-[min(94vw,30rem)]">
+              <div className="absolute inset-0 rounded-2xl border-2 border-cyan-300/90 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_0_56px_rgba(0,255,255,0.22)]" />
+              <div className="absolute inset-0 rounded-2xl shadow-[0_0_56px_rgba(0,255,255,0.32)]" />
+              <div className="absolute inset-[12%] rounded-full border border-cyan-300/30 face-radar" />
+              <div className="absolute inset-[12%] rounded-full border border-cyan-300/25 face-radar-delayed" />
+            </div>
+          </div>
+          <div className="animate-scan absolute left-0 top-0 w-full h-1 bg-cyan-300/80 shadow-[0_0_18px_rgba(34,211,238,0.45)]" />
         </div>
         {/* Bounding box (if supported) */}
         {faceBox ? (
@@ -299,22 +316,36 @@ const FaceCamera = ({
                 ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-200 dark:ring-emerald-300/20'
                 : 'bg-slate-500/10 text-slate-700 ring-slate-600/20 dark:bg-white/5 dark:text-slate-200 dark:ring-white/10',
             ].join(' ')}
-            title={window.FaceDetector ? '' : 'Face detection not supported by this browser'}
+            title={
+              !faceDetectorReady
+                ? 'No Chromium FaceDetector (Firefox/Safari) or init failed — you can still capture. Virtual cameras (e.g. iVCam) often need manual capture.'
+                : isFaceDetected
+                  ? 'Live face scan sees a face'
+                  : 'Live scan on — no face in view yet'
+            }
           >
-            {isFaceDetected ? 'Face detected' : 'No face'}
+            {!faceDetectorReady ? 'Manual' : isFaceDetected ? 'Face detected' : 'No face'}
           </span>
           <span className="text-xs text-slate-500 dark:text-slate-300/70">
             Samples: {samples.length}/{samplesRequired}
           </span>
         </div>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300/70">{status}</p>
+        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+          Align your face inside the cyan frame, then tap <span className="text-slate-700 dark:text-slate-200">Capture</span>.
+          {!faceDetectorReady
+            ? ' Live auto-scan is off in this browser or for this camera — capture still works.'
+            : mustDetectFaceToCapture
+              ? ' Capture turns on when “Face detected” appears.'
+              : null}
+        </p>
 
         <div className="mt-3 flex items-center justify-center gap-3">
           {!done ? (
             <button
               type="button"
               onClick={captureSample}
-              disabled={!isStreaming || (requireFaceDetected && !isFaceDetected)}
+              disabled={!isStreaming || (mustDetectFaceToCapture && !isFaceDetected)}
               className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               Capture

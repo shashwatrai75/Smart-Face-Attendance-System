@@ -208,7 +208,7 @@ const UserManagement = () => {
           `"${user.name || ''}"`,
           `"${user.email || ''}"`,
           `"${user.phone || ''}"`,
-          `"${user.role || ''}"`,
+          `"${user.role === 'member' ? 'Lecturer' : user.role || ''}"`,
           `"${user.status || ''}"`,
           `"${user.institutionName || ''}"`,
           `"${user.city || ''}"`,
@@ -351,7 +351,7 @@ const UserManagement = () => {
 
   // Chart data - only show roles that current user can see
   const getRoleDistributionData = () => {
-    const data = [{ name: 'Member', value: stats.members, color: '#3b82f6' }];
+    const data = [{ name: 'Lecturer', value: stats.members, color: '#3b82f6' }];
     if (currentUser?.role === 'superadmin') {
       data.unshift({ name: 'Office Admin', value: stats.admins, color: '#8b5cf6' });
       data.unshift({ name: 'Superadmin', value: stats.superadmins, color: '#ec4899' });
@@ -836,7 +836,7 @@ const UserManagement = () => {
                         onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="member">Member</option>
+                        <option value="member">Lecturer</option>
                         {isSuperadmin && (
                           <>
                             <option value="admin">Office Admin</option>
@@ -1156,7 +1156,7 @@ const UserManagement = () => {
               }
             />
             <UMStatCard
-              label="Members"
+              label="Lecturers"
               value={stats.members}
               tone="purple"
               icon={
@@ -1252,7 +1252,7 @@ const UserManagement = () => {
                     {isSuperadmin && <option value="superadmin">Superadmin</option>}
                     {isSuperadmin && <option value="admin">Office Admin</option>}
                     {isSuperadmin && <option value="hr">Supervisor</option>}
-                    <option value="member">Member</option>
+                    <option value="member">Lecturer</option>
                   </select>
                 </div>
                 <div>
@@ -1609,7 +1609,13 @@ const UserManagement = () => {
                           <p className="text-sm text-gray-600 mb-2 truncate">{user.email}</p>
                           <div className="flex items-center justify-between mb-4">
                             <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {user.role === 'admin' ? 'Office Admin' : user.role === 'hr' ? 'Supervisor' : user.role}
+                              {user.role === 'admin'
+                                ? 'Office Admin'
+                                : user.role === 'hr'
+                                  ? 'Supervisor'
+                                  : user.role === 'member'
+                                    ? 'Lecturer'
+                                    : user.role}
                             </span>
                             {user.phone && (
                               <span className="text-xs text-gray-500">📞 {user.phone}</span>
@@ -1940,7 +1946,14 @@ const UserManagement = () => {
                           <span className="text-gray-600">Email:</span> {user.email}
                         </div>
                         <div>
-                          <span className="text-gray-600">Role:</span> {user.role === 'admin' ? 'Office Admin' : user.role === 'hr' ? 'Supervisor' : user.role}
+                          <span className="text-gray-600">Role:</span>{' '}
+                          {user.role === 'admin'
+                            ? 'Office Admin'
+                            : user.role === 'hr'
+                              ? 'Supervisor'
+                              : user.role === 'member'
+                                ? 'Lecturer'
+                                : user.role}
                         </div>
                         <div>
                           <span className="text-gray-600">Status:</span> {user.status}

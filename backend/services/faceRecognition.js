@@ -127,10 +127,52 @@ async function compareEmbeddings(emb1, emb2) {
   return cosineSimilarity(emb1, emb2);
 }
 
+/** Reject nearly uniform frames (lens cap, solid color, black feed) before naive embedding match. */
+const MIN_LIVE_GRAY_STDDEV = 8; // on 0–255 scale, after 128×128 resize
+
+/**
+ * @param {string} imagePath
+ * @throws {Error} code BLANK_FRAME when the image has almost no contrast
+ */
+async function assertLiveImageIsNotBlank(imagePath) {
+  const absolutePath = path.resolve(imagePath);
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`Image not found at path: ${absolutePath}`);
+  }
+
+  const { data } = await sharp(absolutePath)
+    .resize(128, 128, { fit: 'cover' })
+    .grayscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const n = data.length;
+  let sum = 0;
+  for (let i = 0; i < n; i += 1) {
+    sum += data[i];
+  }
+  const mean = sum / n;
+  let varAcc = 0;
+  for (let i = 0; i < n; i += 1) {
+    const d = data[i] - mean;
+    varAcc += d * d;
+  }
+  const std = Math.sqrt(varAcc / n);
+
+  if (std < MIN_LIVE_GRAY_STDDEV) {
+    const err = new Error(
+      'Camera image looks blank or uniform. Point the camera at your face with good lighting, then try again.'
+    );
+    err.code = 'BLANK_FRAME';
+    throw err;
+  }
+}
+
 module.exports = {
   loadModel,
   generateEmbedding,
   compareEmbeddings,
   getSimilarityThreshold,
+  assertLiveImageIsNotBlank,
 };
 

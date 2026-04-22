@@ -137,35 +137,44 @@ function handleScopeError(res, scope) {
 const exportReport = async (req, res, next) => {
   try {
     const user = req.user;
-    const { sectionId, dateFrom, dateTo, format = 'xlsx' } = req.query;
+    const { sectionId, classId, dateFrom, dateTo, format = 'xlsx' } = req.query;
 
-    if (!sectionId) {
-      return res.status(400).json({ error: 'Section ID is required' });
+    if (!['superadmin', 'admin', 'hr', 'member'].includes(user.role)) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
-    const section = await Section.findById(sectionId);
-    if (!section) {
-      return res.status(404).json({ error: 'Section not found' });
-    }
+    const secTrim = sectionId != null && String(sectionId).trim() !== '';
+    const clsTrim = classId != null && String(classId).trim() !== '';
 
-    if (user.role === 'member') {
-      const taughtSessions = await ClassSession.find({ teacherId: user._id }).select('sectionId');
-      const sectionIds = taughtSessions.map((s) => s.sectionId && s.sectionId.toString());
-      if (user.sectionId) sectionIds.push(user.sectionId.toString());
-      if (!sectionIds.includes(sectionId)) {
-        return res.status(403).json({ error: 'Access denied to this section' });
-      }
-    }
+    // Empty class + empty section = same scope as charts/summary (member: only their sections; admin/hr: all).
+    const scope = await resolveReportSectionScope(user, {
+      sectionId: secTrim ? String(sectionId).trim() : '',
+      classId: secTrim ? '' : (clsTrim ? String(classId).trim() : ''),
+    });
 
-    let query = { sectionId };
+    if (scope.kind === 'empty_member') {
+      return res.status(403).json({ error: 'No sections available to export for your account' });
+    }
+    if (handleScopeError(res, scope)) return;
+
+    const attendanceQuery = {};
+    applyAttendanceSectionFilter(attendanceQuery, scope.attendanceSectionFilter);
+
+    if (
+      scope.attendanceSectionFilter &&
+      scope.attendanceSectionFilter.$in &&
+      scope.attendanceSectionFilter.$in.length === 0
+    ) {
+      return res.status(404).json({ error: 'No attendance records found' });
+    }
 
     if (dateFrom || dateTo) {
-      query.date = {};
-      if (dateFrom) query.date.$gte = dateFrom;
-      if (dateTo) query.date.$lte = dateTo;
+      attendanceQuery.date = {};
+      if (dateFrom) attendanceQuery.date.$gte = dateFrom;
+      if (dateTo) attendanceQuery.date.$lte = dateTo;
     }
 
-    const attendance = await Attendance.find(query)
+    const attendance = await Attendance.find(attendanceQuery)
       .populate('studentId', 'fullName rollNo')
       .populate('sectionId', 'sectionName sectionType')
       .populate('lecturerId', 'name')
@@ -179,16 +188,23 @@ const exportReport = async (req, res, next) => {
       date: record.date,
       time: record.time,
       studentName: record.studentId?.fullName || '',
-      rollNo: record.studentId?.rollNo || '',
+      rollNo: record.studentId?.rollNo ?? '',
       sectionName: record.sectionId?.sectionName || '',
+      teacherName: record.lecturerId?.name || '',
       status: record.status,
-      memberName: record.lecturerId?.name || '',
     }));
 
     const buffer = await exportAttendance(exportData, format);
 
-    const filename = `attendance-${sectionId}-${dateFrom || 'all'}-${dateTo || 'all'}.${format === 'csv' ? 'csv' : 'xlsx'}`;
-    const contentType = format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const slug = secTrim
+      ? String(sectionId).trim()
+      : clsTrim
+        ? `class-${String(classId).trim()}`
+        : 'all-sections';
+    const ext = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `attendance-${slug}-${dateFrom || 'all'}-${dateTo || 'all'}.${ext}`;
+    const contentType =
+      format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

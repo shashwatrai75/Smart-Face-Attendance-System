@@ -18,16 +18,16 @@ const exportAttendance = async (attendanceData, format = 'xlsx') => {
     { header: 'Teacher', key: 'teacherName', width: 25 },
   ];
 
-  // Add data rows
+  // Add data rows (keys must match worksheet.columns `key` for Date…Teacher)
   attendanceData.forEach((record) => {
     worksheet.addRow({
       date: record.date,
       time: record.time,
       studentName: record.studentName,
       rollNo: record.rollNo,
-      className: record.className,
+      sectionName: record.sectionName ?? record.className ?? '',
       status: record.status,
-      teacherName: record.teacherName,
+      teacherName: record.teacherName ?? record.memberName ?? '',
     });
   });
 

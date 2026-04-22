@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/; // HH:mm or H:mm
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/; // YYYY-MM-DD
 
+// sectionType 'class' → students, attendance, class sessions. 'department' → employees, check-in, DepartmentFaceEnrollment.
 const sectionSchema = new mongoose.Schema(
   {
     sectionName: {

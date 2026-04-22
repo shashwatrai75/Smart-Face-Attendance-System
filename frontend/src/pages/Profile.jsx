@@ -8,6 +8,53 @@ import { validatePassword } from '../utils/validators';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import PageHeader from '../components/userManagement/PageHeader';
 
+const EyeIcon = ({ open, strokeWidth: sw = 1.75, ...props }) => {
+  const w = String(sw);
+  if (open) {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+        <path
+          d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"
+          stroke="currentColor"
+          strokeWidth={w}
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+          stroke="currentColor"
+          strokeWidth={w}
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M3 4.5 21 19.5" stroke="currentColor" strokeWidth={w} strokeLinecap="round" />
+      <path
+        d="M10.7 9.2A3 3 0 0 0 12 15a3 3 0 0 0 2.8-1.9"
+        stroke="currentColor"
+        strokeWidth={w}
+        strokeLinecap="round"
+      />
+      <path
+        d="M6.2 6.7C3.9 8.3 2.5 12 2.5 12s3.5 7 9.5 7c2 0 3.8-.7 5.3-1.7"
+        stroke="currentColor"
+        strokeWidth={w}
+        strokeLinecap="round"
+      />
+      <path
+        d="M9.6 5.3A10.6 10.6 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-2.7 3.7"
+        stroke="currentColor"
+        strokeWidth={w}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
+
+const passwordToggleBtnClass =
+  'absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200';
+
 const Profile = () => {
   const { user: authUser, logout, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -21,6 +68,9 @@ const Profile = () => {
   });
   const [passwordErrors, setPasswordErrors] = useState({});
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -201,9 +251,11 @@ const Profile = () => {
                       ? 'Office Admin'
                       : displayUser?.role === 'hr'
                         ? 'Supervisor'
-                        : displayUser?.role
-                          ? displayUser.role.charAt(0).toUpperCase() + displayUser.role.slice(1)
-                          : 'User'}
+                        : displayUser?.role === 'member'
+                          ? 'Lecturer'
+                          : displayUser?.role
+                            ? displayUser.role.charAt(0).toUpperCase() + displayUser.role.slice(1)
+                            : 'User'}
                   </span>
                 </div>
               </div>
@@ -237,7 +289,15 @@ const Profile = () => {
             </div>
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300/70">Role</div>
-              <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{displayUser?.role || '—'}</div>
+              <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                {displayUser?.role === 'member'
+                  ? 'Lecturer'
+                  : displayUser?.role === 'admin'
+                    ? 'Office Admin'
+                    : displayUser?.role === 'hr'
+                      ? 'Supervisor'
+                      : displayUser?.role || '—'}
+              </div>
             </div>
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300/70">Institution</div>
@@ -262,57 +322,99 @@ const Profile = () => {
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                <label htmlFor="profile-current-password" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                   Current Password
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.oldPassword}
-                  onChange={(e) => handlePasswordChange('oldPassword', e.target.value)}
-                  className={[
-                    'w-full h-11 rounded-lg border px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
-                    passwordErrors.oldPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
-                  ].join(' ')}
-                  placeholder="Enter current password"
-                />
+                <div className="relative">
+                  <input
+                    id="profile-current-password"
+                    type={showOldPassword ? 'text' : 'password'}
+                    value={passwordForm.oldPassword}
+                    onChange={(e) => handlePasswordChange('oldPassword', e.target.value)}
+                    autoComplete="current-password"
+                    className={[
+                      'w-full h-11 rounded-lg border py-2 pl-4 pr-11 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
+                      passwordErrors.oldPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
+                    ].join(' ')}
+                    placeholder="Enter current password"
+                  />
+                  <button
+                    type="button"
+                    className={passwordToggleBtnClass}
+                    onClick={() => setShowOldPassword((s) => !s)}
+                    aria-label={showOldPassword ? 'Hide current password' : 'Show current password'}
+                    aria-pressed={showOldPassword}
+                    title={showOldPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <EyeIcon open={showOldPassword} className="h-5 w-5" strokeWidth={1.8} />
+                  </button>
+                </div>
                 {passwordErrors.oldPassword ? (
                   <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{passwordErrors.oldPassword}</p>
                 ) : null}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                <label htmlFor="profile-new-password" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                   New Password
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.newPassword}
-                  onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
-                  className={[
-                    'w-full h-11 rounded-lg border px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
-                    passwordErrors.newPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
-                  ].join(' ')}
-                  placeholder="Min. 6 characters"
-                />
+                <div className="relative">
+                  <input
+                    id="profile-new-password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={passwordForm.newPassword}
+                    onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                    autoComplete="new-password"
+                    className={[
+                      'w-full h-11 rounded-lg border py-2 pl-4 pr-11 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
+                      passwordErrors.newPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
+                    ].join(' ')}
+                    placeholder="Min. 6 characters"
+                  />
+                  <button
+                    type="button"
+                    className={passwordToggleBtnClass}
+                    onClick={() => setShowNewPassword((s) => !s)}
+                    aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                    aria-pressed={showNewPassword}
+                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <EyeIcon open={showNewPassword} className="h-5 w-5" strokeWidth={1.8} />
+                  </button>
+                </div>
                 {passwordErrors.newPassword ? (
                   <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{passwordErrors.newPassword}</p>
                 ) : null}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                <label htmlFor="profile-confirm-password" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                   Confirm New Password
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
-                  className={[
-                    'w-full h-11 rounded-lg border px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
-                    passwordErrors.confirmPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
-                  ].join(' ')}
-                  placeholder="Re-enter new password"
-                />
+                <div className="relative">
+                  <input
+                    id="profile-confirm-password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                    autoComplete="new-password"
+                    className={[
+                      'w-full h-11 rounded-lg border py-2 pl-4 pr-11 text-slate-900 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-950/30 dark:text-white dark:border-white/10',
+                      passwordErrors.confirmPassword ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 focus:border-indigo-500',
+                    ].join(' ')}
+                    placeholder="Re-enter new password"
+                  />
+                  <button
+                    type="button"
+                    className={passwordToggleBtnClass}
+                    onClick={() => setShowConfirmPassword((s) => !s)}
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    aria-pressed={showConfirmPassword}
+                    title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <EyeIcon open={showConfirmPassword} className="h-5 w-5" strokeWidth={1.8} />
+                  </button>
+                </div>
                 {passwordErrors.confirmPassword ? (
                   <p className="mt-1 text-sm text-rose-600 dark:text-rose-300">{passwordErrors.confirmPassword}</p>
                 ) : null}

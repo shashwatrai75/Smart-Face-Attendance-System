@@ -11,6 +11,7 @@ import {
   recordCheckIn,
   verifyFace,
   getSessionDetails,
+  getSessionHistory,
 } from '../api/api';
 import { saveAttendanceOffline } from '../offline/syncService';
 import { useOffline } from '../context/OfflineContext';
@@ -19,6 +20,68 @@ import { getCurrentTime, getToday } from '../utils/date';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import PageHeader from '../components/userManagement/PageHeader';
+
+const SAMPLE_W = 64;
+const SAMPLE_H = 64;
+/** Mean luma (0–255) below this ⇒ treat as black / no visible picture */
+const BLACK_FEED_MEAN_MAX = 28;
+/** Std dev of luma below this ⇒ flat / solid / covered lens */
+const FLAT_FEED_STD_MAX = 7;
+
+/**
+ * Sample the current video frame for brightness and contrast (mirrors server “blank” idea).
+ * @returns {{ mean: number, std: number } | null}
+ */
+function measureVideoFrameLuma(canvas, video) {
+  if (!video?.videoWidth || !video?.videoHeight || !canvas) return null;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+  canvas.width = SAMPLE_W;
+  canvas.height = SAMPLE_H;
+  ctx.imageSmoothingEnabled = false;
+  try {
+    ctx.drawImage(video, 0, 0, SAMPLE_W, SAMPLE_H);
+  } catch {
+    return null;
+  }
+  let data;
+  try {
+    data = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H).data;
+  } catch {
+    return null;
+  }
+  const n = SAMPLE_W * SAMPLE_H;
+  const lums = new Float32Array(n);
+  let li = 0;
+  for (let p = 0; p < data.length; p += 4) {
+    const r = data[p];
+    const g = data[p + 1];
+    const b = data[p + 2];
+    lums[li++] = 0.299 * r + 0.587 * g + 0.114 * b;
+  }
+  let sum = 0;
+  for (let j = 0; j < n; j += 1) sum += lums[j];
+  const mean = sum / n;
+  let varAcc = 0;
+  for (let j = 0; j < n; j += 1) {
+    const d = lums[j] - mean;
+    varAcc += d * d;
+  }
+  const std = Math.sqrt(varAcc / n);
+  return { mean, std };
+}
+
+function getCameraFeedWarningFromStats(stats) {
+  if (!stats) return null;
+  const { mean, std } = stats;
+  if (mean < BLACK_FEED_MEAN_MAX) {
+    return 'Camera feed looks black or too dark. Add light, unblock the lens, or pick another camera.';
+  }
+  if (std < FLAT_FEED_STD_MAX) {
+    return 'Camera feed looks blank or flat (lens covered or almost no detail).';
+  }
+  return null;
+}
 
 const LiveAttendance = () => {
   const navigate = useNavigate();
@@ -42,7 +105,66 @@ const LiveAttendance = () => {
     }
   }, [user?.role, isDepartmentMode, navigate]);
 
+  // Block live attendance when today's roll is already complete (all present/late, no absents) for this section
+  useEffect(() => {
+    if (user?.role !== 'member' || isDepartmentMode || isClassSessionMode || !sectionIdParam || !isClassSectionMode) {
+      return;
+    }
+    if (!isOnline) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const today = getToday();
+      if (sessionIdParam) {
+        try {
+          const d = await getSessionDetails(sessionIdParam);
+          if (!cancelled && d?.session && !d.session.endTime) return;
+        } catch {
+          // stale session id — continue to completion check
+        }
+      }
+      try {
+        const res = await getSessionHistory({ sectionId: sectionIdParam, startDate: today, endDate: today });
+        const sessions = Array.isArray(res?.sessions) ? res.sessions : [];
+        const hasActive = sessions.some((s) => !s.endTime);
+        if (hasActive) return;
+        const completed = sessions
+          .filter((s) => s.endTime)
+          .sort((a, b) => new Date(b.startTime || 0) - new Date(a.startTime || 0));
+        const last = completed[0];
+        if (!last) return;
+        const t = Number(last.totalStudents || 0);
+        const a = Number(last.absentCount ?? 0);
+        if (t > 0 && a === 0 && !cancelled) {
+          setToast({
+            message:
+              "Today's attendance is already complete for this section. You can start again tomorrow.",
+            type: 'warning',
+          });
+          navigate('/member/dashboard', { replace: true });
+        }
+      } catch {
+        // ignore network errors
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user?.role,
+    sectionIdParam,
+    sessionIdParam,
+    isDepartmentMode,
+    isClassSessionMode,
+    isClassSectionMode,
+    isOnline,
+    navigate,
+  ]);
+
   const videoRef = useRef(null);
+  const analysisCanvasRef = useRef(null);
+  const cameraIssueToastSentRef = useRef(false);
 
   const [sections, setSections] = useState([]);
   const [selectedSectionId, setSelectedSectionId] = useState(sectionIdParam || '');
@@ -56,6 +178,7 @@ const LiveAttendance = () => {
   const [initializing, setInitializing] = useState(false);
   const [toast, setToast] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraFeedWarning, setCameraFeedWarning] = useState(null);
   const [statusText, setStatusText] = useState('Waiting to start...');
   const [isScanning, setIsScanning] = useState(false);
   const [activeSectionName, setActiveSectionName] = useState('');
@@ -91,11 +214,14 @@ const LiveAttendance = () => {
           await videoRef.current.play().catch(() => { });
         }
         setCameraReady(true);
+        cameraIssueToastSentRef.current = false;
         console.log('Camera started / restarted');
       }
     } catch (err) {
       console.error('Camera Access Error:', err);
       setCameraReady(false);
+      setCameraFeedWarning(null);
+      cameraIssueToastSentRef.current = false;
       setToast({
         message: 'Failed to access camera. Please check permissions.',
         type: 'error',
@@ -134,8 +260,39 @@ const LiveAttendance = () => {
     if (videoRef.current?.srcObject) {
       videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       setCameraReady(false);
+      setCameraFeedWarning(null);
+      cameraIssueToastSentRef.current = false;
     }
   };
+
+  // Warn when preview goes black or flat (driver glitch, wrong device, lens covered).
+  useEffect(() => {
+    if (!cameraReady) {
+      setCameraFeedWarning(null);
+      cameraIssueToastSentRef.current = false;
+      return;
+    }
+
+    const tick = () => {
+      const video = videoRef.current;
+      const canvas = analysisCanvasRef.current;
+      if (!video || !canvas) return;
+      const stats = measureVideoFrameLuma(canvas, video);
+      const next = getCameraFeedWarningFromStats(stats);
+      setCameraFeedWarning(next);
+      if (next && !cameraIssueToastSentRef.current) {
+        cameraIssueToastSentRef.current = true;
+        setToast({ message: next, type: 'warning' });
+      }
+      if (!next) {
+        cameraIssueToastSentRef.current = false;
+      }
+    };
+
+    const id = window.setInterval(tick, 1200);
+    tick();
+    return () => window.clearInterval(id);
+  }, [cameraReady]);
 
   // If the underlying video track stops unexpectedly (device change, driver issue),
   // automatically try to restart the camera so scanning can continue.
@@ -407,6 +564,16 @@ const LiveAttendance = () => {
       return;
     }
 
+    const sid = String(studentId);
+    const prior = attendanceRecords.get(sid);
+    if (prior?.status) {
+      setToast({
+        message: 'Attendance already happened for this session.',
+        type: 'warning',
+      });
+      return;
+    }
+
     const time = getCurrentTime();
     const newRecord = {
       status: 'present',
@@ -418,17 +585,20 @@ const LiveAttendance = () => {
 
     setAttendanceRecords((prev) => {
       const updated = new Map(prev);
-      updated.set(studentId, newRecord);
+      updated.set(sid, newRecord);
       return updated;
     });
 
     setLiveFeed((prev) => {
-      const key = `${studentId}:${Date.now()}`;
-      const next = [
-        { key, studentId, name: fullName, time: new Date().toLocaleTimeString(), status: 'present' },
-        ...prev,
-      ];
-      return next.slice(0, 50);
+      const row = {
+        key: sid,
+        studentId: sid,
+        name: fullName,
+        time: new Date().toLocaleTimeString(),
+        status: 'present',
+      };
+      const rest = prev.filter((e) => String(e.studentId) !== sid);
+      return [row, ...rest].slice(0, 50);
     });
 
     const attendanceData = {
@@ -447,15 +617,24 @@ const LiveAttendance = () => {
           recognizedStudents: [attendanceData],
         });
         const result = response.results?.[0];
+        if (result?.status === 'already_marked') {
+          setToast({
+            message:
+              result.message || 'Attendance already happened for this session.',
+            type: 'warning',
+          });
+          return;
+        }
+
         const finalStatus = result?.finalStatus || 'present';
         const isLate = result?.isLate || false;
         const consecutiveLateCount = result?.consecutiveLateCount || 0;
 
         setAttendanceRecords((prev) => {
           const updated = new Map(prev);
-          const record = updated.get(studentId);
+          const record = updated.get(sid);
           if (record) {
-            updated.set(studentId, {
+            updated.set(sid, {
               ...record,
               status: finalStatus,
               isLate,
@@ -478,16 +657,16 @@ const LiveAttendance = () => {
         });
 
         setLiveFeed((prev) => {
-          if (!prev.length) return prev;
-          const [head, ...rest] = prev;
-          if (head.studentId !== studentId) return prev;
+          const rest = prev.filter((e) => String(e.studentId) !== sid);
+          const head = prev.find((e) => String(e.studentId) === sid);
+          if (!head) return prev;
           return [{ ...head, status: finalStatus }, ...rest];
         });
       } catch (err) {
         const msg = err?.error || err?.response?.data?.error || '';
         const lower = String(msg).toLowerCase();
         if (lower.includes('session not found') || lower.includes('session is not active')) {
-          setToast({ message: 'Session ended due to inactivity. Please check Attendance History.', type: 'warning' });
+          setToast({ message: 'Session ended due to inactivity. Please check Reports for session summaries.', type: 'warning' });
           await endSession();
           return;
         }
@@ -503,6 +682,16 @@ const LiveAttendance = () => {
     const student = students.find((s) => s.id === studentId);
     if (!student) return;
 
+    const sid = String(studentId);
+    const prior = attendanceRecords.get(sid);
+    if (prior?.status) {
+      setToast({
+        message: 'Attendance already happened for this session.',
+        type: 'warning',
+      });
+      return;
+    }
+
     const time = getCurrentTime();
     const newRecord = {
       status,
@@ -513,7 +702,7 @@ const LiveAttendance = () => {
 
     setAttendanceRecords((prev) => {
       const updated = new Map(prev);
-      updated.set(studentId, newRecord);
+      updated.set(sid, newRecord);
       return updated;
     });
 
@@ -526,12 +715,21 @@ const LiveAttendance = () => {
 
     if (isOnline) {
       try {
-        await markAttendance({
+        const response = await markAttendance({
           sessionId,
           sectionId: resolvedSectionId,
           classSessionId: classSessionIdParam || null,
           recognizedStudents: [attendanceData],
         });
+        const result = response.results?.[0];
+        if (result?.status === 'already_marked') {
+          setToast({
+            message:
+              result.message || 'Attendance already happened for this session.',
+            type: 'warning',
+          });
+          return;
+        }
         setToast({ message: `${student.fullName} marked as ${status}`, type: 'success' });
       } catch (err) {
         await saveAttendanceOffline(sessionId, resolvedSectionId, studentId, status, time);
@@ -581,9 +779,13 @@ const LiveAttendance = () => {
   const absentCount = isDepartmentMode
     ? 0
     : Array.from(attendanceRecords.values()).filter((r) => r.status === 'absent').length;
+  const markedCount =
+    !isDepartmentMode ? presentCount + lateCount + absentCount : 0;
+  const rosterSize = students.length;
   const unmarkedCount = isDepartmentMode
     ? 0
-    : students.length - presentCount - lateCount - absentCount;
+    : Math.max(0, rosterSize - markedCount);
+  const statsTotal = isDepartmentMode ? rosterSize : Math.max(rosterSize, markedCount);
   const recognizedList = isDepartmentMode
     ? Array.from(departmentRecords.entries()).map(([userId, record]) => ({
       studentId: userId,
@@ -630,7 +832,17 @@ const LiveAttendance = () => {
             const sid = st.studentId || st.id;
             if (!sid) continue;
             const existing = next.get(String(sid));
-            const status = (st.status || '').toLowerCase() || existing?.status || 'present';
+            const serverHasMark =
+              st.timestamp != null && st.timestamp !== '';
+            let status = (st.status || '').toLowerCase() || existing?.status || 'present';
+            if (
+              !serverHasMark &&
+              status === 'absent' &&
+              existing?.status &&
+              ['present', 'late', 'excused'].includes(existing.status)
+            ) {
+              status = existing.status;
+            }
             const time = st.timestamp ? String(st.timestamp) : existing?.time || '';
             next.set(String(sid), {
               ...(existing || {}),
@@ -765,8 +977,17 @@ const LiveAttendance = () => {
                   Align your face in the frame, then use Verify or Scan & Mark.
                 </div>
               </div>
-              <div className={['text-xs font-semibold', cameraReady ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'].join(' ')}>
-                {cameraReady ? 'Camera ready' : 'Camera blocked'}
+              <div
+                className={[
+                  'text-xs font-semibold',
+                  !cameraReady
+                    ? 'text-rose-600 dark:text-rose-300'
+                    : cameraFeedWarning
+                      ? 'text-amber-700 dark:text-amber-200'
+                      : 'text-emerald-600 dark:text-emerald-300',
+                ].join(' ')}
+              >
+                {!cameraReady ? 'Camera blocked' : cameraFeedWarning ? 'Check camera feed' : 'Camera ready'}
               </div>
             </div>
 
@@ -778,7 +999,16 @@ const LiveAttendance = () => {
                 muted
                 className="absolute inset-0 block h-full w-full object-cover object-center [transform:scaleX(-1)]"
               />
+              {cameraReady && cameraFeedWarning ? (
+                <div
+                  className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-amber-500/95 px-3 py-2 text-center text-xs font-semibold text-amber-950 shadow-sm dark:bg-amber-600/95 dark:text-amber-50"
+                  role="status"
+                >
+                  {cameraFeedWarning}
+                </div>
+              ) : null}
             </div>
+            <canvas ref={analysisCanvasRef} width={SAMPLE_W} height={SAMPLE_H} className="sr-only" aria-hidden="true" />
           </div>
 
           {/* Right: live list + stats */}
@@ -793,7 +1023,7 @@ const LiveAttendance = () => {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div className="rounded-xl bg-slate-50 px-3 py-2 text-center dark:bg-white/5">
                   <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-300/70">Total</div>
-                  <div key={students.length} className="text-lg font-semibold text-slate-900 dark:text-white">{students.length}</div>
+                  <div key={statsTotal} className="text-lg font-semibold text-slate-900 dark:text-white">{statsTotal}</div>
                 </div>
                 <div className="rounded-xl bg-emerald-50 px-3 py-2 text-center dark:bg-emerald-400/10">
                   <div className="text-[11px] font-semibold text-emerald-700/80 dark:text-emerald-200/80">Present</div>

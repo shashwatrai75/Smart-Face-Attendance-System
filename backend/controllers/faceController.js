@@ -9,6 +9,7 @@ const {
   generateEmbedding,
   compareEmbeddings,
   getSimilarityThreshold,
+  assertLiveImageIsNotBlank,
 } = require('../services/faceRecognition');
 
 const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'uploads');
@@ -166,9 +167,13 @@ const verifyFace = async (req, res, next) => {
 
     let liveEmbedding;
     try {
+      await assertLiveImageIsNotBlank(tempPath);
       liveEmbedding = await generateEmbedding(tempPath);
     } catch (err) {
       await fs.promises.unlink(tempPath).catch(() => {});
+      if (err && err.code === 'BLANK_FRAME') {
+        return res.status(400).json({ error: err.message });
+      }
       return res.status(400).json({ error: 'Failed to process face image' });
     } finally {
       // Best-effort cleanup; if unlink fails it's not critical

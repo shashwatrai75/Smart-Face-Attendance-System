@@ -77,7 +77,15 @@ const Navbar = () => {
           </div>
           <div className="flex flex-col items-start">
             <span className="text-gray-800 dark:text-gray-200 font-semibold text-sm">{user?.name}</span>
-            <span className="text-gray-500 dark:text-gray-400 text-xs">{user?.role === 'admin' ? 'Office Admin' : user?.role === 'hr' ? 'Supervisor' : (user?.role || '').charAt(0).toUpperCase() + (user?.role || '').slice(1)}</span>
+            <span className="text-gray-500 dark:text-gray-400 text-xs">
+              {user?.role === 'admin'
+                ? 'Office Admin'
+                : user?.role === 'hr'
+                  ? 'Supervisor'
+                  : user?.role === 'member'
+                    ? 'Lecturer'
+                    : (user?.role || '').charAt(0).toUpperCase() + (user?.role || '').slice(1)}
+            </span>
           </div>
           <svg
             className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`}

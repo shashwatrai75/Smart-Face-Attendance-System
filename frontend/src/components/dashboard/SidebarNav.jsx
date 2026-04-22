@@ -8,7 +8,6 @@ import {
   DashboardIcon,
   FolderIcon,
   GraduationIcon,
-  HistoryIcon,
   Icon,
   PlusUserIcon,
   ReportsIcon,
@@ -40,29 +39,26 @@ const groupsForRole = (role) => {
         { to: '/member/dashboard', label: 'My Sections', icon: FolderIcon, roles: ['member'] },
         { to: '/member/enroll', label: 'Enroll Students', icon: GraduationIcon, roles: ['member', 'admin', 'superadmin'] },
         { to: '/hr/enroll-employee', label: 'Enroll Employees', icon: PlusUserIcon, roles: ['hr', 'superadmin'] },
-        { to: '/admin/enroll-employee', label: 'Enroll Employees', icon: PlusUserIcon, roles: ['superadmin'] },
       ],
     },
     {
       title: 'ATTENDANCE',
       items: [
         { to: '/member/attendance', label: 'Live Attendance', icon: CameraIcon, roles: ['member', 'admin', 'superadmin'] },
-        { to: '/admin/history', label: 'History', icon: HistoryIcon, roles: ['admin', 'superadmin'] },
-        { to: '/hr/history', label: 'History', icon: HistoryIcon, roles: ['hr', 'superadmin'] },
-        { to: '/member/history', label: 'Member History', icon: HistoryIcon, roles: ['member', 'admin', 'superadmin'] },
-        { to: '/hr/attendance', label: 'Live Attendance', icon: CameraIcon, roles: ['hr', 'superadmin'] },
+        { to: '/hr/attendance', label: 'Live Attendance', icon: CameraIcon, roles: ['hr'] },
       ],
     },
     {
       title: 'REPORTS',
       items: [
         { to: '/admin/reports', label: 'Reports', icon: ReportsIcon, roles: ['admin', 'superadmin'] },
+        { to: '/member/reports', label: 'Reports', icon: ReportsIcon, roles: ['member'] },
         { to: '/member/reports', label: 'Member Reports', icon: ReportsIcon, roles: ['member', 'admin', 'superadmin'] },
-        { to: '/hr/reports', label: 'Reports', icon: ReportsIcon, roles: ['hr', 'superadmin'] },
+        { to: '/hr/reports', label: 'Reports', icon: ReportsIcon, roles: ['hr'] },
       ],
     },
     {
-      title: 'ADMIN',
+      title: 'SUPERADMIN CONSOLE',
       items: [
         { to: '/superadmin/system-settings', label: 'System Settings', icon: SettingsIcon, roles: ['superadmin'] },
         { to: '/superadmin/admin-management', label: 'Office Admin Management', icon: ShieldIcon, roles: ['superadmin'] },
@@ -74,7 +70,6 @@ const groupsForRole = (role) => {
       title: 'SUPERVISOR',
       items: [
         { to: '/hr/dashboard', label: 'Supervisor Dashboard', icon: DashboardIcon, roles: ['hr', 'superadmin'] },
-        { to: '/hr/enroll-employee', label: 'Supervisor Enroll Employee', icon: PlusUserIcon, roles: ['hr', 'superadmin'] },
         { to: '/hr/face-scan', label: 'Supervisor Face Scan', icon: CameraIcon, roles: ['hr', 'superadmin'] },
       ],
     },
@@ -89,8 +84,10 @@ const groupsForRole = (role) => {
     .filter((g) => g.items.length > 0);
 
   // For supervisors, keep it simpler by hiding admin-only groups.
-  if (isSupervisor && !isSuperadmin) return visible.filter((g) => g.title !== 'ADMIN');
-  if (isMember && !isAdmin && !isSuperadmin) return visible.filter((g) => g.title !== 'ADMIN' && g.title !== 'SUPERVISOR');
+  if (isSupervisor && !isSuperadmin) return visible.filter((g) => g.title !== 'SUPERADMIN CONSOLE');
+  if (isMember && !isAdmin && !isSuperadmin) {
+    return visible.filter((g) => g.title !== 'SUPERADMIN CONSOLE' && g.title !== 'SUPERVISOR');
+  }
   return visible;
 };
 
@@ -101,6 +98,15 @@ const SidebarNav = ({ collapsed, onToggleCollapsed }) => {
   const groups = groupsForRole(user?.role);
 
   const isActive = (to) => pathname === to || (to !== '/' && pathname.startsWith(`${to}/`));
+
+  const brandSubtitle = (() => {
+    const r = user?.role || 'member';
+    if (r === 'member') return 'Lecturer panel';
+    if (r === 'hr') return 'Supervisor Panel';
+    if (r === 'superadmin') return 'Superadmin Console';
+    if (r === 'admin') return 'Admin Console';
+    return 'Teacher Panel';
+  })();
 
   return (
     <aside
@@ -118,7 +124,7 @@ const SidebarNav = ({ collapsed, onToggleCollapsed }) => {
           {!collapsed && (
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">SmartFace</div>
-              <div className="truncate text-xs text-slate-300/70">Admin Console</div>
+              <div className="truncate text-xs text-slate-300/70">{brandSubtitle}</div>
             </div>
           )}
         </div>
@@ -155,7 +161,7 @@ const SidebarNav = ({ collapsed, onToggleCollapsed }) => {
                   const ItemIcon = item.icon;
                   return (
                     <Link
-                      key={item.to}
+                      key={`${item.to}-${item.label}`}
                       to={item.to}
                       title={collapsed ? item.label : undefined}
                       className={[

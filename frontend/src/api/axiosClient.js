@@ -29,7 +29,9 @@ axiosClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
     // Don't redirect on login page 401 errors
-    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+    const path = window.location.pathname || '';
+    const isPublicAuthPath = path.includes('/login') || path.includes('/reset-password');
+    if (error.response?.status === 401 && !isPublicAuthPath) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';

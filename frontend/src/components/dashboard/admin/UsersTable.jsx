@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { UsersIcon } from '../icons';
 
 const roleLabel = (role) => {
-  if (role === 'member') return 'Member';
+  if (role === 'member') return 'Lecturer';
   if (role === 'admin') return 'Office Admin';
   if (role === 'superadmin') return 'Superadmin';
   if (role === 'hr') return 'Supervisor';

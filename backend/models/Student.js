@@ -12,6 +12,13 @@ const studentSchema = new mongoose.Schema(
       required: [true, 'Roll number is required'],
       trim: true,
     },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      sparse: true,
+      unique: true,
+    },
     guardianName: {
       type: String,
       required: [true, 'Guardian name is required'],

@@ -10,12 +10,15 @@ const {
   isSmsFullyConfigured,
   buildStudentEnrolledGuardianMessage,
 } = require('../utils/sms');
+const { isValidGmailAddress, normalizeStudentEmail } = require('../utils/studentEmail');
+const { guardianPhoneDigitsOnly, guardianPhoneTenDigitError } = require('../utils/guardianPhone');
 
 const enrollStudent = async (req, res, next) => {
   try {
     const {
       fullName,
       rollNo,
+      email,
       guardianName,
       guardianPhone,
       dateOfBirth,
@@ -23,18 +26,35 @@ const enrollStudent = async (req, res, next) => {
       sectionId,
     } = req.body;
 
-    if (
-      !fullName ||
-      !rollNo ||
-      !guardianName ||
-      !guardianPhone ||
-      !dateOfBirth ||
-      !gender ||
-      !sectionId
-    ) {
+    const rollTrim = String(rollNo ?? '').trim();
+
+    const missing = [];
+    if (!String(fullName || '').trim()) missing.push('full name');
+    if (!rollTrim) missing.push('roll number');
+    if (!String(email || '').trim()) missing.push('student Gmail');
+    if (!String(guardianName || '').trim()) missing.push('guardian name');
+    if (!dateOfBirth) missing.push('date of birth');
+    if (!String(gender || '').trim()) missing.push('gender');
+    if (!sectionId) missing.push('section');
+
+    if (missing.length > 0) {
+      return res.status(400).json({
+        error: `Please fill in all required fields. Missing: ${missing.join(', ')}.`,
+      });
+    }
+
+    const guardianDigits = guardianPhoneDigitsOnly(guardianPhone);
+    const phoneErr = guardianPhoneTenDigitError(guardianDigits);
+    if (phoneErr) {
+      return res.status(400).json({ error: phoneErr });
+    }
+    const normalizedGuardianPhone = guardianDigits;
+
+    const normalizedEmail = normalizeStudentEmail(email);
+    if (!isValidGmailAddress(normalizedEmail)) {
       return res.status(400).json({
         error:
-          'Missing required fields: fullName, rollNo, guardianName, guardianPhone, dateOfBirth, gender, sectionId',
+          'Student Gmail must be a valid @gmail.com address (e.g. name@gmail.com).',
       });
     }
 
@@ -53,14 +73,19 @@ const enrollStudent = async (req, res, next) => {
         .json({ error: 'Students cannot be enrolled in a container section. Enroll in a subclass instead.' });
     }
 
-    const existingStudent = await Student.findOne({ rollNo, sectionId });
+    // Never treat blank roll as "duplicate" (would match other blank rolls in DB).
+    const existingStudent = await Student.findOne({ rollNo: rollTrim, sectionId });
     if (existingStudent) {
       return res
         .status(400)
         .json({ error: 'Roll number already exists in this section' });
     }
 
-    const normalizedGuardianPhone = String(guardianPhone || '').trim();
+    const existingEmail = await Student.findOne({ email: normalizedEmail }).select('_id');
+    if (existingEmail) {
+      return res.status(400).json({ error: 'This Gmail is already registered to another student.' });
+    }
+
     const existingGuardian = await Student.findOne({ guardianPhone: normalizedGuardianPhone }).select('_id');
     if (existingGuardian) {
       try {
@@ -75,7 +100,8 @@ const enrollStudent = async (req, res, next) => {
 
     const student = await Student.create({
       fullName,
-      rollNo,
+      rollNo: rollTrim,
+      email: normalizedEmail,
       guardianName,
       guardianPhone: normalizedGuardianPhone,
       dateOfBirth,
@@ -86,7 +112,7 @@ const enrollStudent = async (req, res, next) => {
     await AuditLog.create({
       actorUserId: req.user._id,
       action: 'ENROLL_STUDENT',
-      metadata: { studentId: student._id, sectionId, rollNo },
+      metadata: { studentId: student._id, sectionId, rollNo: rollTrim },
     });
 
     if (isSmsFullyConfigured() && normalizedGuardianPhone) {
@@ -105,6 +131,7 @@ const enrollStudent = async (req, res, next) => {
         id: student._id,
         fullName: student.fullName,
         rollNo: student.rollNo,
+        email: student.email,
         guardianName: student.guardianName,
         guardianPhone: student.guardianPhone,
         dateOfBirth: student.dateOfBirth,
@@ -114,9 +141,15 @@ const enrollStudent = async (req, res, next) => {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res
-        .status(400)
-        .json({ error: 'Roll number already exists in this section' });
+      const key = error.keyPattern && Object.keys(error.keyPattern)[0];
+      const msg = String(error.message || '').toLowerCase();
+      if (key === 'email' || msg.includes('email')) {
+        return res.status(400).json({ error: 'This Gmail is already registered to another student.' });
+      }
+      if (key === 'rollNo' || msg.includes('rollno') || msg.includes('roll_no')) {
+        return res.status(400).json({ error: 'Roll number already exists in this section' });
+      }
+      return res.status(400).json({ error: 'Duplicate record: this value is already used.' });
     }
     next(error);
   }

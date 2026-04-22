@@ -1,3 +1,4 @@
+const bcrypt = require('bcrypt');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const Section = require('../models/Section');
@@ -82,16 +83,20 @@ const changePassword = async (req, res, next) => {
       return res.status(400).json({ error: 'New password must be different from current password' });
     }
 
-    // Update password (will be hashed by pre-save hook)
-    user.passwordHash = newPassword;
-    await user.save();
+    // Store bcrypt hash directly (same pattern as auth dev-fix / scripts) so login always compares
+    // against a single well-formed hash, independent of document save middleware edge cases.
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    await User.updateOne({ _id: user._id }, { $set: { passwordHash: hashedPassword } });
 
-    // Log password change
-    await AuditLog.create({
-      actorUserId: user._id,
-      action: 'CHANGE_PASSWORD',
-      metadata: { email: user.email },
-    });
+    try {
+      await AuditLog.create({
+        actorUserId: user._id,
+        action: 'CHANGE_PASSWORD',
+        metadata: { email: user.email },
+      });
+    } catch (auditErr) {
+      logger.warn(`Password changed for ${user.email} but audit log failed: ${auditErr.message}`);
+    }
 
     logger.info(`Password changed for user: ${user.email}`);
 

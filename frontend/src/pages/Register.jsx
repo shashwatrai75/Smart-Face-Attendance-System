@@ -7,6 +7,7 @@ import Toast from '../components/Toast';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PropTypes from 'prop-types';
+import { SECURITY_QUESTION_OPTIONS } from '../constants/securityQuestions';
 
 const inputClass =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/35 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500';
@@ -47,11 +48,16 @@ const Register = () => {
     role: 'member',
     institutionName: '',
     image: '',
+    securityQuestion1: '',
+    securityQuestion2: '',
+    securityAnswer1: '',
+    securityAnswer2: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [wantsSecurityQuestions, setWantsSecurityQuestions] = useState(false);
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -73,9 +79,45 @@ const Register = () => {
       return;
     }
 
+    const institutionTrim = (formData.institutionName || '').trim();
+    if (!institutionTrim) {
+      setError('Institution name is required');
+      return;
+    }
+
+    if (wantsSecurityQuestions) {
+      const sq1 = formData.securityQuestion1 || '';
+      const sq2 = formData.securityQuestion2 || '';
+      const sa1 = (formData.securityAnswer1 || '').trim();
+      const sa2 = (formData.securityAnswer2 || '').trim();
+      if (!sq1 || !sq2) {
+        setError('Choose both security questions from the dropdowns');
+        return;
+      }
+      if (sq1 === sq2) {
+        setError('Choose two different security questions');
+        return;
+      }
+      if (!SECURITY_QUESTION_OPTIONS.includes(sq1) || !SECURITY_QUESTION_OPTIONS.includes(sq2)) {
+        setError('Each question must be selected from the list');
+        return;
+      }
+      if (sa1.length < 2 || sa2.length < 2) {
+        setError('Each security answer must be at least 2 characters');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      await createUser(formData);
+      const payload = { ...formData, institutionName: institutionTrim };
+      if (!wantsSecurityQuestions) {
+        delete payload.securityQuestion1;
+        delete payload.securityQuestion2;
+        delete payload.securityAnswer1;
+        delete payload.securityAnswer2;
+      }
+      await createUser(payload);
       setToast({ message: 'User created successfully', type: 'success' });
       setTimeout(() => {
         navigate('/admin/users');
@@ -106,7 +148,7 @@ const Register = () => {
             <header>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Create New User</h1>
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                Add a team member with profile, address, and account access. Required fields are marked with{' '}
+                Add a lecturer (teacher) or other account with profile, address, and access. Required fields are marked with{' '}
                 <span className="text-red-500">*</span>.
               </p>
             </header>
@@ -237,7 +279,7 @@ const Register = () => {
 
               <FormSection
                 title="Account Information"
-                description="Credentials, role, optional photo, and institution."
+                description="Credentials, role, optional photo, and required institution name."
               >
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
@@ -332,8 +374,9 @@ const Register = () => {
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                       className={`${inputClass} mt-1.5`}
+                      aria-label="Account role"
                     >
-                      <option value="member">Member</option>
+                      <option value="member">Lecturer</option>
                       {isSuperadmin && (
                         <>
                           <option value="admin">Office Admin</option>
@@ -342,18 +385,136 @@ const Register = () => {
                         </>
                       )}
                     </select>
+                    {!isSuperadmin ? (
+                      <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        Office admins create <strong>Lecturer</strong> accounts (stored as member role) for teachers who
+                        take attendance and manage classes.
+                      </p>
+                    ) : null}
                   </div>
                   <div className="md:col-span-2">
-                    <label className={labelClass}>Institution name (optional)</label>
+                    <label className={labelClass}>
+                      Institution name <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       value={formData.institutionName}
                       onChange={(e) => setFormData({ ...formData, institutionName: e.target.value })}
                       className={`${inputClass} mt-1.5`}
                       placeholder="School or organization name"
+                      required
+                      autoComplete="organization"
                     />
                   </div>
                 </div>
+              </FormSection>
+
+              <FormSection
+                title="Password recovery (optional)"
+                description="If enabled, this user can reset a forgotten password from the login screen by answering one of two questions. Answers are not case-sensitive."
+              >
+                {!wantsSecurityQuestions ? (
+                  <button
+                    type="button"
+                    onClick={() => setWantsSecurityQuestions(true)}
+                    className="w-full rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-left text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-100 dark:border-violet-500/40 dark:bg-violet-950/50 dark:text-violet-100 dark:hover:bg-violet-900/40"
+                  >
+                    <span className="block">Need security questions?</span>
+                    <span className="mt-1 block text-xs font-normal text-violet-800/90 dark:text-violet-200/80">
+                      Click to choose two preset questions and answers for this account.
+                    </span>
+                  </button>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Security questions enabled</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWantsSecurityQuestions(false);
+                          setFormData({
+                            ...formData,
+                            securityQuestion1: '',
+                            securityQuestion2: '',
+                            securityAnswer1: '',
+                            securityAnswer2: '',
+                          });
+                        }}
+                        className="text-sm font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className={labelClass}>
+                          Question 1 <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={formData.securityQuestion1}
+                          onChange={(e) =>
+                            setFormData({ ...formData, securityQuestion1: e.target.value })
+                          }
+                          className={`${inputClass} mt-1.5`}
+                          required={wantsSecurityQuestions}
+                        >
+                          <option value="">Select a question</option>
+                          {SECURITY_QUESTION_OPTIONS.map((q) => (
+                            <option key={q} value={q}>
+                              {q}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>
+                          Answer 1 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.securityAnswer1}
+                          onChange={(e) => setFormData({ ...formData, securityAnswer1: e.target.value })}
+                          className={`${inputClass} mt-1.5`}
+                          placeholder="Your answer"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>
+                          Question 2 <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={formData.securityQuestion2}
+                          onChange={(e) =>
+                            setFormData({ ...formData, securityQuestion2: e.target.value })
+                          }
+                          className={`${inputClass} mt-1.5`}
+                          required={wantsSecurityQuestions}
+                        >
+                          <option value="">Select a question</option>
+                          {SECURITY_QUESTION_OPTIONS.map((q) => (
+                            <option key={`${q}-2`} value={q}>
+                              {q}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>
+                          Answer 2 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.securityAnswer2}
+                          onChange={(e) => setFormData({ ...formData, securityAnswer2: e.target.value })}
+                          className={`${inputClass} mt-1.5`}
+                          placeholder="Your answer"
+                          autoComplete="off"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </FormSection>
 
               {error ? (

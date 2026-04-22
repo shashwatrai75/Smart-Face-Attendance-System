@@ -73,6 +73,16 @@ const MemberDashboard = () => {
   const classSections = sections;
 
   const handleStartClassSession = async (section) => {
+    const sid = String(section._id || section.id);
+    const m = metaBySectionId[sid];
+    if (m?.liveAttendanceClosed) {
+      setToast({
+        message:
+          'Attendance is already complete for today (all students marked). You can start a new session tomorrow.',
+        type: 'warning',
+      });
+      return;
+    }
     try {
       const response = await startSession({ sectionId: section._id });
       try {
@@ -157,6 +167,7 @@ const MemberDashboard = () => {
           let isActive = false;
           let sessionStartTime = null;
           let presentLive = 0;
+          let liveAttendanceClosed = false;
 
           try {
             const st = await getStudents(sectionId);
@@ -179,6 +190,18 @@ const MemberDashboard = () => {
               const s0 = sorted[0];
               presentToday = Number(s0.presentCount || 0);
               absentToday = Number(s0.absentCount || 0);
+              const completedToday = todaySessions
+                .filter((s) => s.endTime)
+                .sort(
+                  (a, b) =>
+                    new Date(b.startTime || b.createdAt || 0) - new Date(a.startTime || a.createdAt || 0)
+                );
+              if (completedToday.length > 0) {
+                const last = completedToday[0];
+                const t = Number(last.totalStudents || 0);
+                const abs = Number(last.absentCount ?? 0);
+                liveAttendanceClosed = t > 0 && abs === 0;
+              }
             }
 
             const monthSessions = Array.isArray(monthRes?.sessions) ? monthRes.sessions : [];
@@ -228,6 +251,10 @@ const MemberDashboard = () => {
             }
           }
 
+          if (isActive) {
+            liveAttendanceClosed = false;
+          }
+
           return [
             key,
             {
@@ -239,6 +266,7 @@ const MemberDashboard = () => {
               isActive,
               sessionStartTime,
               presentLive: isActive ? presentLive : presentToday,
+              liveAttendanceClosed,
             },
           ];
         })
@@ -315,6 +343,14 @@ const MemberDashboard = () => {
   }, [recentSessions, activeSessionPayload]);
 
   const handleViewAttendance = (section, m) => {
+    if (m?.liveAttendanceClosed && !m?.isActive) {
+      setToast({
+        message: "Today's attendance is complete for this class. Use Reports to review summaries.",
+        type: 'info',
+      });
+      navigate('/member/reports');
+      return;
+    }
     navigate(
       m?.activeSessionId
         ? `/member/attendance?sessionId=${m.activeSessionId}&sectionId=${section._id}&sectionType=class`
@@ -322,10 +358,36 @@ const MemberDashboard = () => {
     );
   };
 
+  const canStartAnySection = useMemo(() => {
+    if (!classSections.length) return false;
+    return classSections.some((s) => {
+      const m = metaBySectionId[String(s._id || s.id)];
+      if (!m) return true;
+      if (m.isActive) return false;
+      return !m.liveAttendanceClosed;
+    });
+  }, [classSections, metaBySectionId]);
+
   const handleQuickStart = () => {
-    const first = classSections[0];
-    if (first) handleStartClassSession(first);
-    else navigate('/member/attendance');
+    const first = classSections.find((s) => {
+      const m = metaBySectionId[String(s._id || s.id)];
+      if (!m) return true;
+      if (m.isActive) return false;
+      return !m.liveAttendanceClosed;
+    });
+    if (first) {
+      handleStartClassSession(first);
+      return;
+    }
+    if (classSections.length > 0) {
+      setToast({
+        message:
+          'No section can start a new session right now (today’s attendance is already complete where applicable).',
+        type: 'warning',
+      });
+      return;
+    }
+    navigate('/member/attendance');
   };
 
   const statsReady = !statsLoading && !loading;
@@ -350,7 +412,7 @@ const MemberDashboard = () => {
             <TeacherCharts data={chartData} loading={sessionsFetchLoading} />
 
             <TeacherQuickActions
-              disableStart={classSections.length === 0}
+              disableStart={classSections.length === 0 || (statsReady && !canStartAnySection)}
               onStartClick={handleQuickStart}
             />
 

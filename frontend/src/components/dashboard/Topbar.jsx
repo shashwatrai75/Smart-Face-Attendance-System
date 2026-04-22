@@ -68,7 +68,7 @@ const Topbar = ({ pageTitle, onToggleSidebar }) => {
                     ? 'Super Admin'
                     : user?.role === 'hr'
                       ? 'Supervisor'
-                      : 'Member'}
+                      : 'Lecturer'}
               </div>
             </div>
             <svg className={['h-4 w-4 text-slate-400 transition-transform', open ? 'rotate-180' : ''].join(' ')} viewBox="0 0 24 24" fill="none">

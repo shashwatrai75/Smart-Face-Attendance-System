@@ -18,7 +18,7 @@ const DashboardCards = ({ loading, stats }) => {
       to: '/admin/users',
     },
     {
-      label: 'Active Members',
+      label: 'Active lecturers',
       value: stats?.activeMembers ?? 0,
       tone: 'success',
       trend: { value: 4, label: 'vs last week' },
@@ -47,7 +47,7 @@ const DashboardCards = ({ loading, stats }) => {
       tone: 'success',
       trend: { value: 9, label: 'vs last week' },
       icon: iconWrap(ReportsIcon, 'text-green-600 dark:text-green-300'),
-      to: '/admin/history',
+      to: '/admin/reports',
     },
     {
       label: "Today's Attendance",
@@ -55,7 +55,7 @@ const DashboardCards = ({ loading, stats }) => {
       tone: 'danger',
       trend: { value: -2, label: 'vs yesterday' },
       icon: iconWrap(ReportsIcon, 'text-rose-600 dark:text-rose-300'),
-      to: '/admin/history',
+      to: '/admin/reports',
     },
   ];
 

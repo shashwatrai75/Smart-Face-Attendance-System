@@ -98,6 +98,7 @@ const userSchema = new mongoose.Schema(
     image: {
       type: String, // Base64 or URL
     },
+    // Optional: link a login User to a Student record (e.g. portal); most students exist without a User.
     linkedStudentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Student',
@@ -142,6 +143,22 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['active', 'on_leave', 'resigned', ''],
       default: 'active',
+    },
+    securityQuestion1: {
+      type: String,
+      trim: true,
+    },
+    securityQuestion2: {
+      type: String,
+      trim: true,
+    },
+    securityAnswer1Hash: {
+      type: String,
+      select: false,
+    },
+    securityAnswer2Hash: {
+      type: String,
+      select: false,
     },
   },
   {

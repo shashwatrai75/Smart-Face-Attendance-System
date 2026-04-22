@@ -64,22 +64,6 @@
     @apply bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100;
   }
 
-  @keyframes authCardFadeUp {
-    0% {
-      opacity: 0;
-      transform: translateY(10px) scale(0.99);
-      filter: blur(2px);
-    }
-    100% {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-      filter: blur(0);
-    }
-  }
-  .auth-card-fade {
-    animation: authCardFadeUp 520ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
-  }
-
   @keyframes liveRowSlideIn {
     0% {
       opacity: 0;

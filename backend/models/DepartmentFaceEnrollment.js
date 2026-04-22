@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+// Staff face embeddings for department sections (sectionType: department). Not used for Student photo flow.
 const departmentFaceEnrollmentSchema = new mongoose.Schema(
   {
     userId: {

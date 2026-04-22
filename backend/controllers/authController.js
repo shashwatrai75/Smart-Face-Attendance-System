@@ -4,6 +4,7 @@ const AuditLog = require('../models/AuditLog');
 const Section = require('../models/Section');
 const config = require('../config/env');
 const logger = require('../utils/logger');
+const { compareSecurityAnswer } = require('../utils/securityRecovery');
 
 const generateToken = (userId) => {
   return jwt.sign({ userId }, config.JWT_SECRET, {
@@ -27,8 +28,8 @@ const login = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() })
-      .sort({ lastLogin: -1, updatedAt: -1 });
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -181,6 +182,130 @@ const login = async (req, res, next) => {
   }
 };
 
+const recoveryQuestions = async (req, res, next) => {
+  try {
+    const { email } = req.body || {};
+    const normalized = typeof email === 'string' ? email.toLowerCase().trim() : '';
+
+    if (!normalized || !/^\S+@\S+\.\S+$/.test(normalized)) {
+      return res.status(400).json({ error: 'Please provide a valid email address' });
+    }
+
+    if (require('mongoose').connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database connection not available. Please try again later.',
+      });
+    }
+
+    await new Promise((r) => setTimeout(r, 200 + Math.floor(Math.random() * 200)));
+
+    const user = await User.findOne({ email: normalized }).select(
+      '+securityAnswer1Hash +securityAnswer2Hash securityQuestion1 securityQuestion2 status'
+    );
+
+    const hasRecovery =
+      user &&
+      user.status === 'active' &&
+      user.securityQuestion1 &&
+      user.securityQuestion2 &&
+      user.securityAnswer1Hash &&
+      user.securityAnswer2Hash;
+
+    if (!hasRecovery) {
+      return res.json({
+        success: true,
+        questions: null,
+        message:
+          'No recovery questions are available for this email. Confirm the address or ask an administrator to set up your account.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      questions: [
+        { id: 1, text: user.securityQuestion1 },
+        { id: 2, text: user.securityQuestion2 },
+      ],
+    });
+  } catch (error) {
+    logger.error(`Recovery questions error: ${error.message}`);
+    next(error);
+  }
+};
+
+const recoveryResetPassword = async (req, res, next) => {
+  try {
+    const { email, questionId, answer, newPassword } = req.body || {};
+    const normalizedEmail = typeof email === 'string' ? email.toLowerCase().trim() : '';
+
+    if (!normalizedEmail || !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'Please provide a valid email address' });
+    }
+
+    const qid = Number(questionId);
+    if (qid !== 1 && qid !== 2) {
+      return res.status(400).json({ error: 'Choose question 1 or 2' });
+    }
+
+    if (!answer || typeof answer !== 'string') {
+      return res.status(400).json({ error: 'Answer is required' });
+    }
+
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    if (require('mongoose').connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database connection not available. Please try again later.',
+      });
+    }
+
+    await new Promise((r) => setTimeout(r, 200 + Math.floor(Math.random() * 200)));
+
+    const user = await User.findOne({ email: normalizedEmail }).select(
+      '+securityAnswer1Hash +securityAnswer2Hash status'
+    );
+
+    const failMsg =
+      'Could not reset password. Check your email, which question you selected, your answer, and try again.';
+
+    if (!user || user.status !== 'active') {
+      return res.status(400).json({ error: failMsg });
+    }
+
+    const hash = qid === 1 ? user.securityAnswer1Hash : user.securityAnswer2Hash;
+    const ok = await compareSecurityAnswer(answer, hash);
+    if (!ok) {
+      return res.status(400).json({ error: failMsg });
+    }
+
+    user.passwordHash = newPassword;
+    await user.save();
+
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: { failedLoginAttempts: 0 },
+        $unset: { lockUntil: 1 },
+      }
+    );
+
+    await AuditLog.create({
+      actorUserId: user._id,
+      action: 'PASSWORD_RESET',
+      metadata: { email: user.email, method: 'security_questions' },
+    });
+
+    return res.json({ success: true, message: 'Your password has been updated. You can sign in now.' });
+  } catch (error) {
+    logger.error(`Recovery reset password error: ${error.message}`);
+    next(error);
+  }
+};
+
 const seedAdmin = async (req, res, next) => {
   try {
     if (!config.ALLOW_SEED) {
@@ -227,6 +352,8 @@ const seedAdmin = async (req, res, next) => {
 
 module.exports = {
   login,
+  recoveryQuestions,
+  recoveryResetPassword,
   seedAdmin,
 };
 

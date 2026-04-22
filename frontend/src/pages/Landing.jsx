@@ -1,7 +1,11 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import FaceScanOverlay from '../components/FaceScanOverlay';
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [showFaceScan, setShowFaceScan] = useState(false);
+  const launchTimerRef = useRef(null);
 
   const features = [
     {
@@ -68,12 +72,23 @@ const Landing = () => {
     { num: 4, title: 'Attendance Recorded Securely', description: 'Stored with encryption' },
   ];
 
+  useEffect(() => {
+    return () => {
+      if (launchTimerRef.current) window.clearTimeout(launchTimerRef.current);
+    };
+  }, []);
+
   const handleLaunch = () => {
-    navigate('/login');
+    setShowFaceScan(true);
+    launchTimerRef.current = window.setTimeout(() => {
+      launchTimerRef.current = null;
+      navigate('/login');
+    }, 2200);
   };
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
+      {showFaceScan ? <FaceScanOverlay statusText="Starting SmartFace…" /> : null}
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

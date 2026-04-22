@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login as loginAPI } from '../api/api';
+import { login as loginAPI, recoveryQuestions, recoveryResetPassword } from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import { validateEmail } from '../utils/validators';
 import Toast from '../components/Toast';
@@ -132,9 +132,24 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState('email');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotEmailError, setForgotEmailError] = useState('');
+  const [forgotQuestions, setForgotQuestions] = useState(null);
+  const [forgotQuestionId, setForgotQuestionId] = useState(1);
+  const [forgotAnswer, setForgotAnswer] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
@@ -147,20 +162,37 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setEmailError('');
+    setPasswordError('');
 
-    if (!validateEmail(email)) {
-      setError('Please enter a valid email address');
+    const trimmedEmail = email.trim();
+    let hasEmpty = false;
+
+    if (!trimmedEmail) {
+      setEmailError('Email field is empty.');
+      hasEmpty = true;
+    }
+    if (!password) {
+      setPasswordError('Password field is empty.');
+      hasEmpty = true;
+    }
+    if (hasEmpty) {
+      return;
+    }
+
+    if (!validateEmail(trimmedEmail)) {
+      setEmailError('Please enter a valid email address');
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setPasswordError('Password must be at least 6 characters');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await loginAPI(email, password);
+      const response = await loginAPI(trimmedEmail, password);
 
       if (response && response.token && response.user) {
         const userData = {
@@ -225,7 +257,7 @@ const Login = () => {
         />
       )}
 
-      <div className="w-full max-w-lg auth-card-fade">
+      <div className="w-full max-w-lg">
         <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-xl shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
           <div className="p-8 sm:p-10">
             <div className="text-center mb-8">
@@ -242,9 +274,9 @@ const Login = () => {
               </p>
             </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form noValidate onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-white/80 mb-2">
+            <label htmlFor="login-email" className="block text-sm font-medium text-white/80 mb-2">
               Email Address
             </label>
             <div className="relative">
@@ -252,18 +284,33 @@ const Login = () => {
                 <EmailIcon className="h-5 w-5" />
               </div>
               <input
+                id="login-email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-white/15 bg-white/5 px-11 py-3 text-white placeholder:text-white/35 outline-none transition-all duration-200 focus:border-purple-300/40 focus:ring-2 focus:ring-purple-400/60"
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError('');
+                  setError('');
+                }}
+                className={`w-full rounded-xl border bg-white/5 px-11 py-3 text-white placeholder:text-white/35 outline-none transition-all duration-200 focus:ring-2 focus:ring-purple-400/60 ${
+                  emailError
+                    ? 'border-red-400/50 focus:border-red-400/60'
+                    : 'border-white/15 focus:border-purple-300/40'
+                }`}
                 placeholder="name@company.com"
-                required
                 autoComplete={rememberMe ? 'email' : 'off'}
+                aria-invalid={emailError ? 'true' : 'false'}
+                aria-describedby={emailError ? 'login-email-error' : undefined}
               />
             </div>
+            {emailError ? (
+              <p id="login-email-error" className="mt-2 text-sm font-medium text-red-300" role="alert">
+                {emailError}
+              </p>
+            ) : null}
           </div>
           <div>
-            <label className="block text-sm font-medium text-white/80 mb-2">
+            <label htmlFor="login-password" className="block text-sm font-medium text-white/80 mb-2">
               Password
             </label>
             <div className="relative">
@@ -271,13 +318,23 @@ const Login = () => {
                 <LockIcon className="h-5 w-5" />
               </div>
               <input
+                id="login-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-white/15 bg-white/5 px-11 py-3 pr-[5.75rem] text-white placeholder:text-white/35 outline-none transition-all duration-200 focus:border-purple-300/40 focus:ring-2 focus:ring-purple-400/60 sm:pr-[6.25rem]"
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordError('');
+                  setError('');
+                }}
+                className={`w-full rounded-xl border bg-white/5 px-11 py-3 pr-[5.75rem] text-white placeholder:text-white/35 outline-none transition-all duration-200 focus:ring-2 focus:ring-purple-400/60 sm:pr-[6.25rem] ${
+                  passwordError
+                    ? 'border-red-400/50 focus:border-red-400/60'
+                    : 'border-white/15 focus:border-purple-300/40'
+                }`}
                 placeholder="Enter your password"
-                required
                 autoComplete={rememberMe ? 'current-password' : 'off'}
+                aria-invalid={passwordError ? 'true' : 'false'}
+                aria-describedby={passwordError ? 'login-password-error' : undefined}
               />
               <button
                 type="button"
@@ -291,6 +348,11 @@ const Login = () => {
                 <span className="select-none">{showPassword ? 'Hide' : 'Show'}</span>
               </button>
             </div>
+            {passwordError ? (
+              <p id="login-password-error" className="mt-2 text-sm font-medium text-red-300" role="alert">
+                {passwordError}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between gap-4">
@@ -305,7 +367,20 @@ const Login = () => {
             </label>
             <button
               type="button"
-              onClick={() => setToast({ message: 'Forgot password flow coming soon.', type: 'info' })}
+              onClick={() => {
+                setForgotEmail(email.trim());
+                setForgotEmailError('');
+                setForgotError('');
+                setForgotStep('email');
+                setForgotQuestions(null);
+                setForgotQuestionId(1);
+                setForgotAnswer('');
+                setForgotNewPassword('');
+                setForgotConfirmPassword('');
+                setShowForgotNewPassword(false);
+                setShowForgotConfirmPassword(false);
+                setShowForgotModal(true);
+              }}
               className="text-sm font-medium text-purple-200/90 hover:text-purple-100 transition-colors"
             >
               Forgot password?
@@ -333,22 +408,319 @@ const Login = () => {
             )}
           </button>
         </form>
-
-            <div className="mt-7 border-t border-white/10 pt-6 text-center">
-              <p className="text-sm text-white/70">
-                Don&apos;t have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => navigate('/admin/register')}
-                  className="font-semibold text-purple-200/90 hover:text-purple-100 transition-colors"
-                >
-                  Sign up
-                </button>
-              </p>
-            </div>
           </div>
         </div>
       </div>
+
+      {showForgotModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="forgot-password-title"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowForgotModal(false);
+              setShowForgotNewPassword(false);
+              setShowForgotConfirmPassword(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-white/20 bg-purple-950/95 p-6 shadow-2xl shadow-black/40">
+            <h2 id="forgot-password-title" className="text-lg font-semibold text-white">
+              {forgotStep === 'done' ? 'Password updated' : 'Reset password'}
+            </h2>
+            <p className="mt-2 text-sm text-white/70">
+              {forgotStep === 'email' &&
+                'Enter your account email, then answer one of your security questions to set a new password.'}
+              {forgotStep === 'reset' &&
+                'Answer the question you chose when the account was created (answers ignore capital letters).'}
+              {forgotStep === 'done' && 'You can sign in with your new password.'}
+            </p>
+
+            {forgotStep === 'done' ? (
+              <>
+                <p className="mt-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm text-emerald-100/90">
+                  Your password has been updated.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotModal(false);
+                    setShowForgotNewPassword(false);
+                    setShowForgotConfirmPassword(false);
+                  }}
+                  className="mt-5 w-full rounded-xl border border-white/20 py-2.5 text-sm font-semibold text-white/90 hover:bg-white/10 transition-colors"
+                >
+                  Close
+                </button>
+              </>
+            ) : null}
+
+            {forgotStep === 'email' ? (
+              <form
+                className="mt-5 space-y-4"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setForgotEmailError('');
+                  setForgotError('');
+                  const trimmed = forgotEmail.trim();
+                  if (!trimmed) {
+                    setForgotEmailError('Email is required');
+                    return;
+                  }
+                  if (!validateEmail(trimmed)) {
+                    setForgotEmailError('Please enter a valid email address');
+                    return;
+                  }
+                  setForgotLoading(true);
+                  try {
+                    const res = await recoveryQuestions(trimmed);
+                    if (res.questions && res.questions.length === 2) {
+                      setForgotQuestions(res.questions);
+                      setForgotStep('reset');
+                    } else {
+                      setForgotError(
+                        res.message ||
+                          'No recovery questions are set up for this email. Confirm the address or ask an administrator.'
+                      );
+                    }
+                  } catch (err) {
+                    setForgotError(err.error || err.message || 'Something went wrong');
+                  } finally {
+                    setForgotLoading(false);
+                  }
+                }}
+              >
+                <div>
+                  <label htmlFor="forgot-email" className="block text-sm font-medium text-white/80 mb-1.5">
+                    Email
+                  </label>
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => {
+                      setForgotEmail(e.target.value);
+                      setForgotEmailError('');
+                      setForgotError('');
+                    }}
+                    className={`w-full rounded-xl border bg-white/5 px-4 py-2.5 text-white placeholder:text-white/35 outline-none focus:ring-2 focus:ring-purple-400/60 ${
+                      forgotEmailError ? 'border-red-400/50' : 'border-white/15'
+                    }`}
+                    placeholder="name@company.com"
+                    autoComplete="email"
+                  />
+                  {forgotEmailError ? (
+                    <p className="mt-1.5 text-sm text-red-300" role="alert">
+                      {forgotEmailError}
+                    </p>
+                  ) : null}
+                </div>
+                {forgotError ? (
+                  <p className="text-sm text-red-200/90" role="alert">
+                    {forgotError}
+                  </p>
+                ) : null}
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotModal(false);
+                      setShowForgotNewPassword(false);
+                      setShowForgotConfirmPassword(false);
+                    }}
+                    className="flex-1 rounded-xl border border-white/20 py-2.5 text-sm font-semibold text-white/90 hover:bg-white/10 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="flex-1 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-900/30 disabled:opacity-60"
+                  >
+                    {forgotLoading ? 'Loading…' : 'Continue'}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {forgotStep === 'reset' && forgotQuestions ? (
+              <form
+                className="mt-5 space-y-4"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setForgotError('');
+                  if (!forgotAnswer.trim()) {
+                    setForgotError('Enter your answer');
+                    return;
+                  }
+                  if (forgotNewPassword.length < 6) {
+                    setForgotError('New password must be at least 6 characters');
+                    return;
+                  }
+                  if (forgotNewPassword !== forgotConfirmPassword) {
+                    setForgotError('Passwords do not match');
+                    return;
+                  }
+                  setForgotLoading(true);
+                  try {
+                    await recoveryResetPassword({
+                      email: forgotEmail.trim(),
+                      questionId: forgotQuestionId,
+                      answer: forgotAnswer,
+                      newPassword: forgotNewPassword,
+                    });
+                    setForgotStep('done');
+                  } catch (err) {
+                    setForgotError(err.error || err.message || 'Could not reset password');
+                  } finally {
+                    setForgotLoading(false);
+                  }
+                }}
+              >
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80 space-y-2">
+                  <p>
+                    <span className="text-white/50">Q1:</span> {forgotQuestions[0].text}
+                  </p>
+                  <p>
+                    <span className="text-white/50">Q2:</span> {forgotQuestions[1].text}
+                  </p>
+                </div>
+                <fieldset>
+                  <legend className="text-sm font-medium text-white/80 mb-2">Which question are you answering?</legend>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 text-sm text-white/85 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="recovery-q"
+                        checked={forgotQuestionId === 1}
+                        onChange={() => setForgotQuestionId(1)}
+                        className="text-purple-500"
+                      />
+                      Question 1
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-white/85 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="recovery-q"
+                        checked={forgotQuestionId === 2}
+                        onChange={() => setForgotQuestionId(2)}
+                        className="text-purple-500"
+                      />
+                      Question 2
+                    </label>
+                  </div>
+                </fieldset>
+                <div>
+                  <label htmlFor="forgot-answer" className="block text-sm font-medium text-white/80 mb-1.5">
+                    Your answer
+                  </label>
+                  <input
+                    id="forgot-answer"
+                    type="text"
+                    value={forgotAnswer}
+                    onChange={(e) => {
+                      setForgotAnswer(e.target.value);
+                      setForgotError('');
+                    }}
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-white placeholder:text-white/35 outline-none focus:ring-2 focus:ring-purple-400/60"
+                    placeholder="Answer (not case-sensitive)"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="forgot-new-pass" className="block text-sm font-medium text-white/80 mb-1.5">
+                    New password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="forgot-new-pass"
+                      type={showForgotNewPassword ? 'text' : 'password'}
+                      value={forgotNewPassword}
+                      onChange={(e) => {
+                        setForgotNewPassword(e.target.value);
+                        setForgotError('');
+                      }}
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 pr-[5.75rem] text-white placeholder:text-white/35 outline-none focus:ring-2 focus:ring-purple-400/60 sm:pr-[6.25rem]"
+                      placeholder="At least 6 characters"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotNewPassword((s) => !s)}
+                      className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5 rounded-lg border border-violet-400/50 bg-violet-600/40 px-2.5 py-2 text-xs font-semibold text-violet-50 shadow-sm shadow-violet-900/30 backdrop-blur-sm transition hover:border-fuchsia-300/55 hover:bg-violet-500/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-purple-950/50"
+                      aria-label={showForgotNewPassword ? 'Hide new password' : 'Show new password'}
+                      aria-pressed={showForgotNewPassword}
+                      title={showForgotNewPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <EyeIcon open={showForgotNewPassword} className="h-4 w-4 shrink-0" strokeWidth={2} />
+                      <span className="select-none">{showForgotNewPassword ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="forgot-confirm-pass" className="block text-sm font-medium text-white/80 mb-1.5">
+                    Confirm new password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="forgot-confirm-pass"
+                      type={showForgotConfirmPassword ? 'text' : 'password'}
+                      value={forgotConfirmPassword}
+                      onChange={(e) => {
+                        setForgotConfirmPassword(e.target.value);
+                        setForgotError('');
+                      }}
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 pr-[5.75rem] text-white placeholder:text-white/35 outline-none focus:ring-2 focus:ring-purple-400/60 sm:pr-[6.25rem]"
+                      placeholder="Repeat password"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotConfirmPassword((s) => !s)}
+                      className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5 rounded-lg border border-violet-400/50 bg-violet-600/40 px-2.5 py-2 text-xs font-semibold text-violet-50 shadow-sm shadow-violet-900/30 backdrop-blur-sm transition hover:border-fuchsia-300/55 hover:bg-violet-500/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-purple-950/50"
+                      aria-label={showForgotConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                      aria-pressed={showForgotConfirmPassword}
+                      title={showForgotConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <EyeIcon open={showForgotConfirmPassword} className="h-4 w-4 shrink-0" strokeWidth={2} />
+                      <span className="select-none">{showForgotConfirmPassword ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </div>
+                </div>
+                {forgotError ? (
+                  <p className="text-sm text-red-200/90" role="alert">
+                    {forgotError}
+                  </p>
+                ) : null}
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotStep('email');
+                      setForgotQuestions(null);
+                      setForgotError('');
+                      setShowForgotNewPassword(false);
+                      setShowForgotConfirmPassword(false);
+                    }}
+                    className="flex-1 rounded-xl border border-white/20 py-2.5 text-sm font-semibold text-white/90 hover:bg-white/10 transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="flex-1 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-900/30 disabled:opacity-60"
+                  >
+                    {forgotLoading ? 'Saving…' : 'Update password'}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

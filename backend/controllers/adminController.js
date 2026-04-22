@@ -6,6 +6,8 @@ const Section = require('../models/Section');
 const Student = require('../models/Student');
 const SectionMember = require('../models/SectionMember');
 const logger = require('../utils/logger');
+const { hashSecurityAnswer } = require('../utils/securityRecovery');
+const { isAllowedSecurityQuestion } = require('../constants/securityQuestions');
 const { dedupeUsersByEmailForResponse } = require('../utils/userDedupe');
 const { todayDate } = require('../utils/timeHelpers');
 const {
@@ -36,11 +38,54 @@ const createUser = async (req, res, next) => {
       sectionId,
       guardianName,
       guardianPhone,
+      securityQuestion1,
+      securityQuestion2,
+      securityAnswer1,
+      securityAnswer2,
     } = req.body;
 
     // Role restrictions: Only superadmin can create admins, superadmins, or HR
     if (role && (role === 'admin' || role === 'superadmin' || role === 'hr') && req.user.role !== 'superadmin') {
       return res.status(403).json({ error: 'Only Superadmins can create Office Admin, Superadmin, or Supervisor users' });
+    }
+
+    const institutionTrim = typeof institutionName === 'string' ? institutionName.trim() : '';
+    if (!institutionTrim) {
+      return res.status(400).json({ error: 'Institution name is required' });
+    }
+
+    const sq1 = typeof securityQuestion1 === 'string' ? securityQuestion1.trim() : '';
+    const sq2 = typeof securityQuestion2 === 'string' ? securityQuestion2.trim() : '';
+    const sa1 = typeof securityAnswer1 === 'string' ? securityAnswer1 : '';
+    const sa2 = typeof securityAnswer2 === 'string' ? securityAnswer2 : '';
+    const sa1t = sa1.trim();
+    const sa2t = sa2.trim();
+    const anySecurity = sq1 || sq2 || sa1t || sa2t;
+    const allSecurity = sq1 && sq2 && sa1t && sa2t;
+    if (anySecurity && !allSecurity) {
+      return res.status(400).json({
+        error: 'Fill both security questions (from the list) and both answers, or leave recovery unset.',
+      });
+    }
+    let securityPayload = null;
+    if (allSecurity) {
+      if (!isAllowedSecurityQuestion(sq1) || !isAllowedSecurityQuestion(sq2)) {
+        return res.status(400).json({ error: 'Each security question must be chosen from the allowed list.' });
+      }
+      if (sq1 === sq2) {
+        return res.status(400).json({ error: 'Security questions must be different from each other.' });
+      }
+      if (sa1t.length < 2 || sa2t.length < 2) {
+        return res.status(400).json({
+          error: 'Each security answer must be at least 2 characters.',
+        });
+      }
+      securityPayload = {
+        securityQuestion1: sq1,
+        securityQuestion2: sq2,
+        securityAnswer1Hash: await hashSecurityAnswer(sa1),
+        securityAnswer2Hash: await hashSecurityAnswer(sa2),
+      };
     }
 
     const userData = {
@@ -56,7 +101,7 @@ const createUser = async (req, res, next) => {
       dateOfBirth: dateOfBirth || undefined,
       gender: gender || '',
       role: role || 'member',
-      institutionName,
+      institutionName: institutionTrim,
       image,
       status: 'active',
     };
@@ -68,6 +113,10 @@ const createUser = async (req, res, next) => {
     }
     if (guardianName !== undefined) userData.guardianName = guardianName || '';
     if (guardianPhone !== undefined) userData.guardianPhone = guardianPhone || '';
+    if (securityPayload) {
+      Object.assign(userData, securityPayload);
+    }
+
     const user = await User.create(userData);
 
     await AuditLog.create({
@@ -191,6 +240,10 @@ const updateUser = async (req, res, next) => {
       status,
       guardianName,
       guardianPhone,
+      securityQuestion1,
+      securityQuestion2,
+      securityAnswer1,
+      securityAnswer2,
     } = req.body;
 
     const userToUpdate = await User.findById(id);
@@ -232,6 +285,33 @@ const updateUser = async (req, res, next) => {
     if (status !== undefined && ['active', 'disabled'].includes(status)) updateFields.status = status;
     if (guardianName !== undefined) updateFields.guardianName = guardianName || '';
     if (guardianPhone !== undefined) updateFields.guardianPhone = guardianPhone || '';
+
+    const allSecurityProvided =
+      typeof securityQuestion1 === 'string' &&
+      typeof securityQuestion2 === 'string' &&
+      typeof securityAnswer1 === 'string' &&
+      typeof securityAnswer2 === 'string';
+    if (allSecurityProvided) {
+      const sq1 = securityQuestion1.trim();
+      const sq2 = securityQuestion2.trim();
+      const sa1 = securityAnswer1;
+      const sa2 = securityAnswer2;
+      if (!isAllowedSecurityQuestion(sq1) || !isAllowedSecurityQuestion(sq2)) {
+        return res.status(400).json({ error: 'Each security question must be chosen from the allowed list.' });
+      }
+      if (!sa1.trim() || !sa2.trim() || sa1.trim().length < 2 || sa2.trim().length < 2) {
+        return res.status(400).json({
+          error: 'Security answers must be at least 2 characters each.',
+        });
+      }
+      if (sq1 === sq2) {
+        return res.status(400).json({ error: 'Security questions must be different from each other.' });
+      }
+      updateFields.securityQuestion1 = sq1;
+      updateFields.securityQuestion2 = sq2;
+      updateFields.securityAnswer1Hash = await hashSecurityAnswer(sa1);
+      updateFields.securityAnswer2Hash = await hashSecurityAnswer(sa2);
+    }
 
     const user = await User.findByIdAndUpdate(id, updateFields, {
       new: true,

@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
-import { ClipboardIcon, DashboardIcon, HistoryIcon, PlusUserIcon, ShieldIcon, UsersIcon } from '../icons';
+import { ClipboardIcon, DashboardIcon, PlusUserIcon, ReportsIcon, ShieldIcon, UsersIcon } from '../icons';
 
 const ActivityPanel = ({ loading, stats }) => {
   const items = !stats
@@ -51,11 +51,11 @@ const ActivityPanel = ({ loading, stats }) => {
           </div>
         </div>
         <Link
-          to="/admin/history"
+          to="/admin/reports"
           className="shrink-0 rounded-xl p-2.5 text-violet-600 transition-colors hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-500/10"
-          aria-label="View attendance history"
+          aria-label="View attendance reports"
         >
-          <HistoryIcon className="h-5 w-5" />
+          <ReportsIcon className="h-5 w-5" />
         </Link>
       </div>
 

@@ -1,18 +1,11 @@
-/**
- * SIMPLIFIED API - All API calls in one file
- * 
- * This file contains all functions that communicate with the backend.
- * Organized by feature for easy navigation.
- */
-
 import axiosClient from './axiosClient';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-// ============================================
+
 // AUTHENTICATION
-// ============================================
+
 export const login = (email, password) => {
   return axiosClient.post('/auth/login', { email, password });
 };
@@ -21,9 +14,17 @@ export const seedAdmin = (name, email, password) => {
   return axiosClient.post('/auth/seed-admin', { name, email, password });
 };
 
-// ============================================
+export const recoveryQuestions = (email) => {
+  return axiosClient.post('/auth/recovery/questions', { email });
+};
+
+export const recoveryResetPassword = (payload) => {
+  return axiosClient.post('/auth/recovery/reset', payload);
+};
+
+
 // USER MANAGEMENT
-// ============================================
+
 export const getProfile = () => {
   return axiosClient.get('/users/me');
 };
@@ -90,9 +91,8 @@ export const uploadUserImage = (id, formData) => {
   });
 };
 
-// ============================================
 // SECTION MANAGEMENT
-// ============================================
+
 export const createSection = (sectionData) => {
   return axiosClient.post('/sections', sectionData);
 };
@@ -141,9 +141,9 @@ export const deleteClassSession = (id) => {
   return axiosClient.delete(`/class-sessions/${id}`);
 };
 
-// ============================================
+
 // CHECK-IN (Department sections)
-// ============================================
+
 export const recordCheckIn = (sectionId, userId) => {
   return axiosClient.post('/checkin/record', { sectionId, userId });
 };
@@ -157,9 +157,9 @@ export const notifyEmployeeNoCheckInSMS = (params) => {
   return axiosClient.post('/checkin/notify-no-checkin-sms', null, { params });
 };
 
-// ============================================
+
 // STUDENT MANAGEMENT
-// ============================================
+
 export const enrollStudent = (studentData) => {
   return axiosClient.post('/students/enroll', studentData);
 };
@@ -176,10 +176,8 @@ export const getStudents = (sectionId) => {
 export const deleteStudentData = (id) => {
   return axiosClient.delete(`/students/${id}/delete-data`);
 };
-
-// ============================================
 // ATTENDANCE
-// ============================================
+
 export const startSession = (payload) => {
   return axiosClient.post('/attendance/start-session', payload);
 };
@@ -230,9 +228,8 @@ export const getCalendarAttendance = (params) => {
   return axiosClient.get('/attendance/calendar', { params });
 };
 
-// ============================================
 // FACE ENROLLMENT & VERIFICATION
-// ============================================
+
 export const enrollFace = (payload) => {
   // payload: { targetType: 'student' | 'user', targetId, imageBase64 }
   return axiosClient.post('/face/enroll', payload);
@@ -243,9 +240,7 @@ export const verifyFace = (payload) => {
   return axiosClient.post('/face/verify', payload);
 };
 
-// ============================================
 // REPORTS
-// ============================================
 export const getSummary = (params) => {
   return axiosClient.get('/reports/summary', { params });
 };
@@ -258,9 +253,7 @@ export const getTrendData = (params) => {
   return axiosClient.get('/reports/trend', { params });
 };
 
-// ============================================
 // SUPERADMIN (Superadmin only)
-// ============================================
 export const getSystemSettings = () => {
   return axiosClient.get('/superadmin/settings');
 };
@@ -289,11 +282,11 @@ export const deleteSectionSuperadmin = (id) => {
   return axiosClient.delete(`/superadmin/sections/${id}`);
 };
 
-// ============================================
 // REPORTS
-// ============================================
-export const exportReport = async (sectionId, dateFrom, dateTo, format = 'xlsx') => {
-  const params = { sectionId, format };
+export const exportReport = async ({ sectionId, classId, dateFrom, dateTo, format = 'xlsx' }) => {
+  const params = { format };
+  if (sectionId) params.sectionId = sectionId;
+  if (classId) params.classId = classId;
   if (dateFrom) params.dateFrom = dateFrom;
   if (dateTo) params.dateTo = dateTo;
 
@@ -312,7 +305,8 @@ export const exportReport = async (sectionId, dateFrom, dateTo, format = 'xlsx')
   const link = document.createElement('a');
   link.href = url;
   const extension = format === 'csv' ? 'csv' : 'xlsx';
-  link.setAttribute('download', `attendance-${sectionId}-${dateFrom || 'all'}-${dateTo || 'all'}.${extension}`);
+  const slug = sectionId || (classId ? `class-${classId}` : 'all-sections');
+  link.setAttribute('download', `attendance-${slug}-${dateFrom || 'all'}-${dateTo || 'all'}.${extension}`);
   document.body.appendChild(link);
   link.click();
   link.remove();
